@@ -1,0 +1,6 @@
+@EasyMitt.Api_HostAddress = http://localhost:5180
+
+GET {{EasyMitt.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EasyMitt.Api/EasyMitt.Api.csproj" />
+    <Project Path="src/EasyMitt.Application/EasyMitt.Application.csproj" />
+    <Project Path="src/EasyMitt.Domain/EasyMitt.Domain.csproj" />
+    <Project Path="src/EasyMitt.Infrastructure/EasyMitt.Infrastructure.csproj" />
+  </Folder>
+</Solution>
