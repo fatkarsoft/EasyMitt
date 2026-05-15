@@ -6,6 +6,7 @@ Monorepo for the EasyMitt MVP.
 
 - `service/` - .NET 10 API, application, domain, infrastructure projects.
 - `ui/` - React/Vite frontend.
+- `scan-service/` - Local Ollama-powered invoice/receipt image analyzer.
 
 ## Local Services
 
@@ -45,4 +46,28 @@ http://localhost:<port>/docs
 cd ui
 npm install
 npm run dev
+```
+
+## Scan Service
+
+The scan service receives invoice/receipt images from the API and analyzes them with a local Ollama vision model.
+
+```powershell
+cd scan-service
+npm install
+npm run dev
+```
+
+Default endpoints:
+
+```text
+Scan service: http://127.0.0.1:7332
+Ollama:       http://127.0.0.1:11434
+Model:        llama3.2-vision:11b
+```
+
+Install the local vision model:
+
+```powershell
+ollama pull llama3.2-vision:11b
 ```

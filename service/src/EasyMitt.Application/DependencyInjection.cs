@@ -1,5 +1,7 @@
+using EasyMitt.Application.Abstractions.Export;
 using EasyMitt.Application.Abstractions.Localization;
 using EasyMitt.Application.Services.Billing;
+using EasyMitt.Application.Services.Export;
 using EasyMitt.Application.Services.Localization;
 using EasyMitt.Application.Services.Transformation;
 using EasyMitt.Application.Validation;
@@ -14,6 +16,7 @@ public static class DependencyInjection
     {
         services.AddValidatorsFromAssemblyContaining<InvoiceDocumentDtoValidator>();
         services.AddScoped<IInvoiceDraftWorkflow, InvoiceDraftWorkflow>();
+        services.AddScoped<IDatevExportService, DatevExportService>();
         services.AddScoped<IAppLocalizer, DictionaryAppLocalizer>();
         services.AddSingleton<IRawInvoiceImportMapper, RawInvoiceImportMapper>();
         return services;

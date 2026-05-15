@@ -1,0 +1,32 @@
+<svg width="720" height="180" viewBox="0 0 720 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">EasyMitt Logo</title>
+  <desc id="desc">EasyMitt geometric layered validation logo with wordmark.</desc>
+  <defs>
+    <linearGradient id="emBlue" x1="24" y1="28" x2="144" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#0D1B2A"/>
+    </linearGradient>
+    <linearGradient id="emGreen" x1="91" y1="100" x2="139" y2="134" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0D1B2A" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softShadow)">
+    <path d="M92 18L154 54V126L92 162L30 126V54L92 18Z" fill="#F3F6FA"/>
+    <path d="M92 29L144 59V121L92 151L40 121V59L92 29Z" fill="url(#emBlue)"/>
+    <path d="M62 66H105C124.33 66 140 81.67 140 101V116H82C62.67 116 47 100.33 47 81V81C47 72.716 53.716 66 62 66Z" fill="#FFFFFF" fill-opacity="0.16"/>
+    <path d="M58 64L92 44L126 64V101L92 121L58 101V64Z" stroke="#FFFFFF" stroke-opacity="0.38" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M73 93.5L88.5 109L121 76" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M101 124L125 100L142 117L118 141L101 124Z" fill="url(#emGreen)"/>
+  </g>
+
+  <g>
+    <text x="190" y="103" font-family="Inter, Manrope, Poppins, Arial, sans-serif" font-size="62" font-weight="800" letter-spacing="-2.5" fill="#0D1B2A">Easy</text>
+    <text x="333" y="103" font-family="Inter, Manrope, Poppins, Arial, sans-serif" font-size="62" font-weight="800" letter-spacing="-2.5" fill="#2563EB">Mitt</text>
+    <text x="193" y="134" font-family="Inter, Manrope, Poppins, Arial, sans-serif" font-size="18" font-weight="600" letter-spacing="1.6" fill="#64748B">E-INVOICING · VALIDATION · COMPLIANCE</text>
+  </g>
+</svg>

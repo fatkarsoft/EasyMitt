@@ -9,6 +9,7 @@
   <ItemGroup>
     <Folder Include="Identity\" />
     <Folder Include="Localization\" />
+    <Folder Include="Payments\" />
     <Folder Include="Taxation\" />
   </ItemGroup>
 

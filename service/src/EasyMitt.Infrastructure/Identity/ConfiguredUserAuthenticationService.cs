@@ -2,37 +2,42 @@ using EasyMitt.Application.Abstractions.Identity;
 using EasyMitt.Application.Dtos.Identity;
 using EasyMitt.Domain.Identity;
 using EasyMitt.Domain.Localization;
-using Microsoft.Extensions.Options;
+using EasyMitt.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace EasyMitt.Infrastructure.Identity;
 
 public sealed class ConfiguredUserAuthenticationService(
-    IOptions<ConfiguredIdentityOptions> options) : IUserAuthenticationService
+    EasyMittDbContext db) : IUserAuthenticationService
 {
-    public Task<AuthenticatedUserDto?> AuthenticateAsync(
+    public async Task<AuthenticatedUserDto?> AuthenticateAsync(
         LoginRequestDto request,
         CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
+        var email = request.Email.Trim();
+        var user = await db.Users
+            .AsNoTracking()
+            .Include(x => x.Company)
+            .FirstOrDefaultAsync(x => x.Email == email.ToLower(), cancellationToken);
 
-        var user = options.Value.Users.FirstOrDefault(u =>
-            string.Equals(u.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(u.Password, request.Password, StringComparison.Ordinal));
-
-        if (user is null || !EasyMittRoles.All.Contains(user.Role))
+        if (user is null ||
+            user.Company is null ||
+            !user.IsActive ||
+            !EasyMittRoles.All.Contains(user.Role) ||
+            !PasswordHashing.Verify(request.Password, user.PasswordHash))
         {
-            return Task.FromResult<AuthenticatedUserDto?>(null);
+            return null;
         }
 
-        return Task.FromResult<AuthenticatedUserDto?>(new AuthenticatedUserDto
+        return new AuthenticatedUserDto
         {
-            UserId = user.UserId,
+            UserId = user.Id,
             Email = user.Email,
             DisplayName = user.DisplayName,
             CompanyId = user.CompanyId,
-            CompanyName = user.CompanyName,
+            CompanyName = user.Company.Name,
             Role = user.Role,
             Language = SupportedLanguages.NormalizeOrDefault(user.Language),
-        });
+        };
     }
 }

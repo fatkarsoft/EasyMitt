@@ -23,13 +23,13 @@ export default function Settings() {
           </div>
           <div className="form-group max-320">
             <label>{t(language, "language")}</label>
-            <select className="form-control" value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <select className="form-control" value={language} onChange={(event) => setLanguage(event.target.value)}>
               <option value="tr">{t(language, "turkish")}</option>
               <option value="en">{t(language, "english")}</option>
               <option value="de">{t(language, "german")}</option>
             </select>
           </div>
-          <button className="btn btn-secondary" onClick={logout}>{t(language, "logout")}</button>
+          <button className="btn btn-secondary" type="button" onClick={logout}>{t(language, "logout")}</button>
         </div>
       </div>
     </>

@@ -29,6 +29,13 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<EasyMitt.Infrastructure.Persistence.EasyMittDbInitializer>()
+        .InitializeAsync();
+}
+
+if (app.Environment.IsDevelopment())
+{
     app.MapOpenApi();
     app.MapScalarApiReference("/docs", options =>
     {
@@ -51,5 +58,14 @@ app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapInvoiceEndpoints();
+app.MapCustomerEndpoints();
+app.MapProductEndpoints();
+app.MapInventoryEndpoints();
+app.MapQuoteEndpoints();
+app.MapExpenseEndpoints();
+app.MapPaymentEndpoints();
+app.MapDunningEndpoints();
+app.MapDatevEndpoints();
+app.MapDatevSettingsEndpoints();
 
 app.Run();

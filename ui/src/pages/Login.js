@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import logoSm from "../assets/images/logo-sm.png";
+import brandLogo from "../assets/images/easymitt-brand.svg";
 import { ApiError } from "../api/client.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
@@ -43,12 +43,12 @@ export default function Login() {
           <div className="row justify-content-center">
             <div className="col-md-8 col-lg-6 col-xl-5">
               <div className="card overflow-hidden">
-                <div className="bg-primary">
-                  <div className="text-primary text-center p-4">
+                <div className="login-card-header">
+                  <div className="text-center p-4">
                     <h5 className="text-white font-size-20">{t(language, "loginTitle")}</h5>
-                    <p className="text-white-50">{t(language, "loginSubtitle")}</p>
-                    <span className="logo logo-admin">
-                      <img src={logoSm} height="28" alt="EasyMitt" />
+                    <p className="login-card-subtitle">{t(language, "loginSubtitle")}</p>
+                    <span className="login-brand">
+                      <img className="login-brand-logo" src={brandLogo} alt="EasyMitt" />
                     </span>
                   </div>
                 </div>
@@ -64,12 +64,10 @@ export default function Login() {
                         <label>{t(language, "password")}</label>
                         <input className="form-control" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
                       </div>
-                      <div className="form-group row mb-0">
-                        <div className="col-12 text-right">
-                          <button className="btn btn-primary w-md waves-effect waves-light" disabled={loading}>
-                            {loading ? `${t(language, "loading")}...` : t(language, "signIn")}
-                          </button>
-                        </div>
+                      <div className="form-group login-action mb-0">
+                        <button className="btn btn-primary btn-login-submit waves-effect waves-light" disabled={loading}>
+                          {loading ? `${t(language, "loading")}...` : t(language, "signIn")}
+                        </button>
                       </div>
                     </form>
                     <div className="demo-users mt-4">

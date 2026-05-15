@@ -1,15 +1,21 @@
 import { useState } from "react";
-import { ChevronDown, FileInput, FileText, Gauge, LogOut, Menu, PlusCircle, Settings } from "lucide-react";
+import { ArrowUpDown, Banknote, BellRing, Boxes, ChevronDown, FileSignature, FileSpreadsheet, FileText, Gauge, LogOut, Menu, ReceiptText, Settings, Users } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
-import logoSm from "../assets/images/logo-sm.png";
+import iconLogo from "../assets/images/easymitt-icon.svg";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
 
 const nav = [
   { to: "/dashboard", icon: Gauge, key: "dashboard" },
+  { to: "/customers", icon: Users, key: "customers" },
+  { to: "/quotes", icon: FileSignature, key: "quotes" },
   { to: "/invoices", icon: FileText, key: "invoices" },
-  { to: "/invoices/new", icon: PlusCircle, key: "newInvoice" },
-  { to: "/invoices/raw", icon: FileInput, key: "rawImport" },
+  { to: "/expenses", icon: ReceiptText, key: "expenses" },
+  { to: "/payments", icon: Banknote, key: "payments" },
+  { to: "/dunning", icon: BellRing, key: "dunning" },
+  { to: "/datev", icon: FileSpreadsheet, key: "datev" },
+  { to: "/products", icon: Boxes, key: "products" },
+  { to: "/inventory", icon: ArrowUpDown, key: "inventory" },
   { to: "/settings", icon: Settings, key: "settings" }
 ];
 
@@ -32,8 +38,14 @@ export default function Layout({ children }) {
           <div className="d-flex align-items-center">
             <div className="navbar-brand-box">
               <Link to="/dashboard" className="logo logo-light">
-                <span className="logo-sm"><img src={logoSm} alt="EasyMitt" height="26" /></span>
-                <span className="logo-lg easymitt-logo-text">EasyMitt</span>
+                <span className="logo-sm"><img className="easymitt-logo-icon" src={iconLogo} alt="EasyMitt" /></span>
+                <span className="logo-lg sidebar-brand-lockup">
+                  <img className="sidebar-brand-icon" src={iconLogo} alt="" aria-hidden="true" />
+                  <span className="sidebar-brand-copy">
+                    <strong>Easy<span>Mitt</span></strong>
+                    <small>E-Invoicing Compliance</small>
+                  </span>
+                </span>
               </Link>
             </div>
             <button className="btn btn-sm px-3 font-size-24 header-item waves-effect" onClick={() => setCondensed(!condensed)}>

@@ -1,5 +1,6 @@
 using EasyMitt.Application.Dtos.En16931;
 using EasyMitt.Application.Localization;
+using EasyMitt.Domain.Payments;
 using FluentValidation;
 
 namespace EasyMitt.Application.Validation;
@@ -16,14 +17,9 @@ public sealed class SellerPartyDtoValidator : AbstractValidator<SellerPartyDto>
             .MaximumLength(32).WithErrorCode(ValidationErrorCodes.MaxLength);
         RuleFor(x => x.PaymentIban)
             .NotEmpty().WithErrorCode(ValidationErrorCodes.IbanRequired)
-            .Must(iban => !string.IsNullOrWhiteSpace(iban) && LooksLikeIban(iban))
+            .Must(IbanPolicy.IsValid)
             .WithErrorCode(ValidationErrorCodes.IbanFormat)
-            .MaximumLength(34).WithErrorCode(ValidationErrorCodes.MaxLength);
-    }
-
-    private static bool LooksLikeIban(string value)
-    {
-        var compact = value.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
-        return compact.Length is >= 15 and <= 34 && char.IsLetter(compact[0]) && char.IsLetter(compact[1]);
+            .Must(iban => IbanPolicy.Normalize(iban).Length <= 34)
+            .WithErrorCode(ValidationErrorCodes.MaxLength);
     }
 }

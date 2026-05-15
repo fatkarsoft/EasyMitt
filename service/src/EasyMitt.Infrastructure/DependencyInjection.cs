@@ -7,6 +7,7 @@ using EasyMitt.Infrastructure.Archiving;
 using EasyMitt.Infrastructure.Communication;
 using EasyMitt.Infrastructure.ElectronicInvoicing;
 using EasyMitt.Infrastructure.Identity;
+using EasyMitt.Infrastructure.Ingestion;
 using EasyMitt.Infrastructure.Persistence;
 using EasyMitt.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -26,7 +27,17 @@ public static class DependencyInjection
         services.AddDbContext<EasyMittDbContext>(options =>
             options.UseNpgsql(connectionString));
 
+        services.AddScoped<EasyMittDbInitializer>();
         services.AddScoped<IInvoiceDraftRepository, InvoiceDraftRepository>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IInventoryRepository, InventoryRepository>();
+        services.AddScoped<IQuoteRepository, QuoteRepository>();
+        services.AddScoped<IExpenseRepository, ExpenseRepository>();
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IDunningRepository, DunningRepository>();
+        services.AddScoped<IDatevSettingsRepository, DatevSettingsRepository>();
+        services.AddScoped<IDatevExportLogRepository, DatevExportLogRepository>();
 
         var configuredArchiveRoot = configuration["Archive:LocalRoot"];
         var archiveRoot = string.IsNullOrWhiteSpace(configuredArchiveRoot)
@@ -37,9 +48,23 @@ public static class DependencyInjection
 
         services.AddSingleton<IElectronicInvoiceGenerator, S2ElectronicInvoiceGenerator>();
         services.AddSingleton<IInvoiceDispatch, NoOpInvoiceDispatch>();
+        var scanServiceOptions = ReadScanServiceOptions(configuration);
+        services.AddSingleton(Options.Create(scanServiceOptions));
+        services.AddSingleton<IScannedInvoiceImportAnalyzer>(sp =>
+        {
+            var httpClient = new HttpClient
+            {
+                BaseAddress = new Uri(scanServiceOptions.BaseUrl),
+                Timeout = TimeSpan.FromSeconds(Math.Max(scanServiceOptions.TimeoutSeconds, 1)),
+            };
+
+            return new ScanServiceInvoiceScanAnalyzer(
+                httpClient,
+                sp.GetRequiredService<IOptions<ScanServiceOptions>>());
+        });
         services.AddSingleton(Options.Create(ReadIdentityOptions(configuration)));
         services.AddSingleton<IAuthTokenService, HmacAuthTokenService>();
-        services.AddSingleton<IUserAuthenticationService, ConfiguredUserAuthenticationService>();
+        services.AddScoped<IUserAuthenticationService, ConfiguredUserAuthenticationService>();
 
         return services;
     }
@@ -67,6 +92,21 @@ public static class DependencyInjection
             SigningKey = section["SigningKey"] ?? "",
             TokenLifetimeMinutes = int.TryParse(section["TokenLifetimeMinutes"], out var minutes) ? minutes : 60,
             Users = users,
+        };
+    }
+
+    private static ScanServiceOptions ReadScanServiceOptions(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("ScanService");
+        return new ScanServiceOptions
+        {
+            BaseUrl = section["BaseUrl"] ?? "http://127.0.0.1:7332",
+            TimeoutSeconds = int.TryParse(section["TimeoutSeconds"], out var timeoutSeconds)
+                ? timeoutSeconds
+                : 120,
+            MaxFileBytes = int.TryParse(section["MaxFileBytes"], out var maxFileBytes)
+                ? maxFileBytes
+                : 8 * 1024 * 1024,
         };
     }
 }

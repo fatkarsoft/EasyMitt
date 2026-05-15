@@ -5,6 +5,7 @@ using EasyMitt.Application.Abstractions.Archiving;
 using EasyMitt.Application.Abstractions.Persistence;
 using EasyMitt.Application.Dtos.En16931;
 using EasyMitt.Application.Validation;
+using EasyMitt.Domain.Billing;
 using FluentValidation;
 using FluentValidation.Results;
 
@@ -26,7 +27,12 @@ public sealed class InvoiceDraftWorkflow(
         CancellationToken cancellationToken) =>
         documentValidator.ValidateAsync(document, cancellationToken);
 
-    public async Task<Guid> SaveDraftAsync(InvoiceDocumentDto document, CancellationToken cancellationToken)
+    public async Task<Guid> SaveDraftAsync(
+        Guid companyId,
+        InvoiceDocumentDto document,
+        Guid? customerId,
+        IReadOnlyList<Guid?> productIds,
+        CancellationToken cancellationToken)
     {
         var validation = await documentValidator.ValidateAsync(document, cancellationToken);
         if (!validation.IsValid)
@@ -43,10 +49,18 @@ public sealed class InvoiceDraftWorkflow(
 
         var record = new InvoiceDraftRecord(
             id,
+            companyId,
+            customerId,
+            productIds,
             json,
             hashHex,
             now,
             now,
+            InvoiceLifecycleStatus.Draft,
+            IssuedAtUtc: null,
+            SentAtUtc: null,
+            PaidAtUtc: null,
+            CancelledAtUtc: null,
             IsImmutableSnapshot: true,
             ArchiveObjectKey: archive.ObjectKey);
 

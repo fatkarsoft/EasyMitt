@@ -1,0 +1,26 @@
+{
+  "name": "easymitt-scan-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --noEmit",
+    "start": "tsx src/server.ts",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "express": "^4.22.1",
+    "multer": "^2.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.15.3",
+    "eslint": "latest",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.0"
+  }
+}

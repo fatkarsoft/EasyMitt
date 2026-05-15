@@ -7,5 +7,10 @@ public interface IInvoiceDraftWorkflow
 {
     Task<ValidationResult> ValidateAsync(InvoiceDocumentDto document, CancellationToken cancellationToken);
 
-    Task<Guid> SaveDraftAsync(InvoiceDocumentDto document, CancellationToken cancellationToken);
+    Task<Guid> SaveDraftAsync(
+        Guid companyId,
+        InvoiceDocumentDto document,
+        Guid? customerId,
+        IReadOnlyList<Guid?> productIds,
+        CancellationToken cancellationToken);
 }

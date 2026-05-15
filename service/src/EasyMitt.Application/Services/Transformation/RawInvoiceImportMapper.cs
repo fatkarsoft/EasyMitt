@@ -1,5 +1,6 @@
 using EasyMitt.Application.Dtos.En16931;
 using EasyMitt.Application.Dtos.Ingestion;
+using EasyMitt.Domain.Payments;
 using EasyMitt.Domain.Taxation;
 
 namespace EasyMitt.Application.Services.Transformation;
@@ -54,7 +55,7 @@ public sealed class RawInvoiceImportMapper : IRawInvoiceImportMapper
             {
                 Name = string.IsNullOrWhiteSpace(raw.MerchantOrSellerHint) ? "Satıcı (AI)" : raw.MerchantOrSellerHint!,
                 VatId = raw.SellerVatIdHint,
-                PaymentIban = raw.IbanOrPaymentHint,
+                PaymentIban = IbanPolicy.Normalize(raw.IbanOrPaymentHint),
             },
             Buyer = new BuyerPartyDto
             {
