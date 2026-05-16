@@ -31,6 +31,8 @@ public sealed class EasyMittDbContext(DbContextOptions<EasyMittDbContext> option
 
     public DbSet<InvoiceDraftEntity> InvoiceDrafts => Set<InvoiceDraftEntity>();
 
+    public DbSet<EmailDeliveryLogEntity> EmailDeliveryLogs => Set<EmailDeliveryLogEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(EasyMittDbContext).Assembly);

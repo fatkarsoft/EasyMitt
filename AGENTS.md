@@ -82,6 +82,58 @@ dotnet ef migrations add MigrationName --project service/src/EasyMitt.Infrastruc
 dotnet ef database update --project service/src/EasyMitt.Infrastructure/EasyMitt.Infrastructure.csproj --startup-project service/src/EasyMitt.Api/EasyMitt.Api.csproj
 ```
 
+## Service Lifecycle Rule
+
+After every development task that touches backend or frontend code, you MUST verify both services are running and restart any that are down. The user expects to keep working immediately after you finish — a stopped service is a broken handoff.
+
+Required checks at the end of every task that built, migrated, or modified the backend or UI:
+
+1. **Backend API on port 5095** (the port the UI's Vite proxy targets):
+   ```powershell
+   try { Invoke-RestMethod -Uri "http://127.0.0.1:5095/health" -TimeoutSec 3 } catch { "down" }
+   ```
+   If down, start it detached so it survives this shell exiting:
+   ```powershell
+   cmd /c 'start "EasyMitt API" /D "C:\Github Projects\EasyMitt\service\src\EasyMitt.Api" /MIN cmd /c "set ASPNETCORE_URLS=http://127.0.0.1:5095 && dotnet run --no-launch-profile"'
+   ```
+   Wait ~10 seconds, then re-check the health endpoint.
+
+2. **UI dev server on port 5173**:
+   ```powershell
+   try { (Invoke-WebRequest -Uri "http://127.0.0.1:5173" -TimeoutSec 2 -UseBasicParsing).StatusCode } catch { "down" }
+   ```
+   If down, start it detached:
+   ```powershell
+   cmd /c 'start "EasyMitt UI" /D "C:\Github Projects\EasyMitt\ui" /MIN cmd /c "npm run dev"'
+   ```
+
+3. **Scan service on port 7332** — only restart if your task touched `scan-service/` or invoice ingest flow.
+
+Important notes:
+- Do NOT use PowerShell `Start-Job` to host the API/UI — the process dies when the job's parent shell exits. Always use `cmd /c start` for true detachment.
+- Do NOT use `dotnet run` without `--no-launch-profile` — `launchSettings.json` overrides to port 5180 and breaks the UI proxy.
+- If port 5095 is already bound by an old instance, do not assume it's healthy — verify with `/health`. If it's stuck, find the PID via `Get-NetTCPConnection -LocalPort 5095` and `Stop-Process`.
+- DLL build locks: if `dotnet build` fails with `MSB3027` (file locked by `EasyMitt.Api`), stop that PID first, rebuild, then restart per step 1.
+
+## Feature Completion Rule
+
+Every completed feature MUST be marked as done in BOTH of these files before the task is reported finished. Otherwise the next session (Claude, Codex, or the user reopening the project) cannot tell what's done and may redo or skip work.
+
+**`docs/roadmap.md`:**
+- Move the feature's section out of `## Upcoming Modules` or `## Next Major Module` into `## Completed`.
+- Replace the planned bullets with a short list of what actually shipped (key endpoints, tables, components).
+- Bump `Last updated: YYYY-MM-DD` at the top to today's date.
+- Add the next chosen module under `## Next Major Module` with a Goal line and scope bullets.
+
+**`docs/agent-handoff.md`:**
+- Bump `Last updated: YYYY-MM-DD (Module Name)` at the top.
+- Replace `## Latest Completed Work` with the new module's details: backend files, migrations, frontend files, i18n keys count, validation commands that passed.
+- Move the previous "Latest" into the prose ("The previous completed module is …") so history is preserved.
+- Rewrite `## Suggested Next Work` to recommend the next module with a one-line rationale and a scope bullet list.
+- If a new DB migration was applied, list its name. If services have a new port or new env var, update `## Local Services`.
+
+Do not skip this step even for "small" modules. The user opens new sessions frequently — accurate handoff docs are how we avoid losing context.
+
 ## Collaboration Protocol
 
 - Do not revert user changes or unrelated agent changes.
@@ -94,3 +146,4 @@ dotnet ef database update --project service/src/EasyMitt.Infrastructure/EasyMitt
   - current services/processes
   - next recommended work
 - Keep `docs/roadmap.md` and `docs/decisions.md` current when product direction changes.
+- Honor the **Service Lifecycle Rule** and **Feature Completion Rule** above before reporting a task as done.

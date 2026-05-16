@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpDown, Banknote, BellRing, Boxes, ChevronDown, FileSignature, FileSpreadsheet, FileText, Gauge, LogOut, Menu, ReceiptText, Settings, Users } from "lucide-react";
+import { ArrowUpDown, Banknote, BarChart3, BellRing, Boxes, ChevronDown, FileSignature, FileSpreadsheet, FileText, Gauge, LogOut, Menu, ReceiptText, Settings, ShieldCheck, Users } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import iconLogo from "../assets/images/easymitt-icon.svg";
 import { useAuth } from "../state/auth.js";
@@ -13,7 +13,9 @@ const nav = [
   { to: "/expenses", icon: ReceiptText, key: "expenses" },
   { to: "/payments", icon: Banknote, key: "payments" },
   { to: "/dunning", icon: BellRing, key: "dunning" },
+  { to: "/compliance", icon: ShieldCheck, key: "compliance" },
   { to: "/datev", icon: FileSpreadsheet, key: "datev" },
+  { to: "/reporting", icon: BarChart3, key: "reporting" },
   { to: "/products", icon: Boxes, key: "products" },
   { to: "/inventory", icon: ArrowUpDown, key: "inventory" },
   { to: "/settings", icon: Settings, key: "settings" }

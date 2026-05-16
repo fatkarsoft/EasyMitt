@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, FileText, Send, ThumbsDown } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileText, Mail, Send, ThumbsDown } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import PageTitle from "../components/PageTitle.js";
+import SendEmailModal from "../components/SendEmailModal.js";
 import { quotesApi } from "../api/quotes.js";
+import { emailApi } from "../api/email.js";
 import { ApiError } from "../api/client.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
@@ -15,11 +17,22 @@ export default function QuoteDetail() {
   const [quote, setQuote] = useState(null);
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState("");
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailLogs, setEmailLogs] = useState([]);
 
   useEffect(() => {
-    quotesApi.get(id)
-      .then(setQuote)
-      .catch((err) => setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]));
+    let alive = true;
+    Promise.all([
+      quotesApi.get(id),
+      emailApi.getQuoteLogs(id).catch(() => []),
+    ])
+      .then(([quoteData, logData]) => {
+        if (!alive) return;
+        setQuote(quoteData);
+        setEmailLogs(Array.isArray(logData) ? logData : []);
+      })
+      .catch((err) => { if (alive) setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]); });
+    return () => { alive = false; };
   }, [id]);
 
   async function transition(key, action) {
@@ -50,6 +63,12 @@ export default function QuoteDetail() {
     }
   }
 
+  async function handleSendEmail(body) {
+    await emailApi.sendQuote(id, body);
+    setMessage(["success", t(language, "emailSent")]);
+    emailApi.getQuoteLogs(id).then((logs) => setEmailLogs(Array.isArray(logs) ? logs : [])).catch(() => {});
+  }
+
   const document = quote?.document;
 
   return (
@@ -78,6 +97,22 @@ export default function QuoteDetail() {
                   {["Draft", "Sent"].includes(quote.status) && <button className="btn btn-outline-danger" disabled={!canWrite || !!loading} onClick={() => transition("decline", quotesApi.decline)}><ThumbsDown size={16} /> {t(language, "markDeclined")}</button>}
                   {["Draft", "Sent", "Accepted"].includes(quote.status) && <button className="btn btn-primary" disabled={!canWrite || !!loading} onClick={convert}><FileText size={16} /> {t(language, "convertToInvoice")}</button>}
                   {quote.convertedInvoiceDraftId && <Link className="btn btn-secondary" to={`/invoices/${quote.convertedInvoiceDraftId}`}>{t(language, "openInvoice")}</Link>}
+                  {canWrite && <button className="btn btn-outline-primary" disabled={!!loading} onClick={() => setEmailOpen(true)}><Mail size={16} /> {t(language, "sendEmail")}</button>}
+                </div>
+              </div>
+              <div className="invoice-lifecycle-panel mb-4">
+                <div>
+                  <span className="status-pill status-info"><Mail size={14} /> {t(language, "emailDeliveryLogs")}</span>
+                  <p className="text-muted mb-0 mt-2">{t(language, "emailDeliveryLogsHint")}</p>
+                </div>
+                <div className="page-action-group" style={{ flexWrap: "wrap" }}>
+                  {emailLogs.length === 0
+                    ? <span className="status-pill status-muted">{t(language, "noEmailLogs")}</span>
+                    : emailLogs.map((log) => (
+                      <span className={`status-pill ${log.status === "Sent" ? "status-ready" : "status-risk"}`} key={log.id}>
+                        <Mail size={12} /> {log.toEmail} · {new Date(log.createdAtUtc).toLocaleString()} · {t(language, `emailStatus_${log.status}`)}
+                      </span>
+                    ))}
                 </div>
               </div>
               <div className="row">
@@ -91,6 +126,15 @@ export default function QuoteDetail() {
           </div>
         </>
       )}
+      <SendEmailModal
+        open={emailOpen}
+        language={language}
+        documentType="quote"
+        defaultSubject={quote ? `Angebot ${quote.quoteNumber}` : ""}
+        defaultBody=""
+        onSend={handleSendEmail}
+        onClose={() => setEmailOpen(false)}
+      />
     </>
   );
 }

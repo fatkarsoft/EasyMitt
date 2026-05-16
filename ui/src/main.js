@@ -25,6 +25,8 @@ import RawImport from "./pages/RawImport.js";
 import InvoiceDetail from "./pages/InvoiceDetail.js";
 import Datev from "./pages/Datev.js";
 import DatevPreview from "./pages/DatevPreview.js";
+import Compliance from "./pages/Compliance.js";
+import Reporting from "./pages/Reporting.js";
 import Settings from "./pages/Settings.js";
 
 function ProtectedApp() {
@@ -59,6 +61,8 @@ function ProtectedApp() {
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
         <Route path="/datev" element={<Datev />} />
         <Route path="/datev/preview" element={<DatevPreview />} />
+        <Route path="/compliance" element={<Compliance />} />
+        <Route path="/reporting" element={<Reporting />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -71,53 +71,38 @@ EasyMitt is a Germany-focused SaaS platform for e-invoicing and accounting opera
 - Tax key mappings.
 - Export locking/force re-export path.
 
-## Next Major Module
-
 ### Compliance Center
 
-Goal: Make EasyMitt feel like a serious German compliance product instead of only an invoice entry tool.
-
-Recommended complete scope:
-
-- Central compliance dashboard.
-- Readiness cards:
-  - XRechnung readiness
-  - ZUGFeRD readiness
-  - DATEV readiness
-  - GoBD archive status
-  - payment reconciliation status
-  - Mahnwesen overdue risk
-- Document risk list:
-  - missing required BT fields
-  - invalid VAT/IBAN
-  - not archived
-  - not exported to DATEV
-  - overdue/unpaid
-- Audit timeline:
-  - draft created
-  - validated
-  - exported
-  - archived
-  - sent/issued/paid/overdue
-  - reminder created
-  - DATEV exported
-- Filters:
-  - date range
-  - status
-  - document type
-  - risk level
-- Role behavior:
-  - Auditor read-only
-  - Admin/Accountant can trigger validation/export actions
-
-## Upcoming Modules
+- Central compliance dashboard at `/compliance`.
+- XRechnung, ZUGFeRD, GoBD, DATEV readiness progress cards.
+- Document risk list: missing BT fields, not GoBD archived, not DATEV exported, overdue without reminders.
+- Audit timeline per invoice: status transitions, archive, and dunning events.
+- Date range, status, and risk level filters.
+- All roles read. No new migration.
 
 ### Email Delivery
 
-- Send invoice/quote/reminder emails.
-- Store delivery status.
-- Template management.
-- Attach XRechnung/ZUGFeRD outputs.
+- Send invoice/quote/reminder emails with ZUGFeRD PDF attachment for invoices.
+- `email_delivery_logs` table: status (Sent/Failed), toEmail, subject, attachment type, sender.
+- SMTP via `System.Net.Mail` with NoOp fallback when SmtpHost is empty.
+- `SendEmailModal` component used in InvoiceDetail, QuoteDetail, and Dunning.
+- i18n keys for TR/EN/DE.
+- Admin/Accountant write, Auditor read-only.
+
+## Next Major Module
+
+### Reporting Dashboard
+
+Goal: Visualize revenue, overdue receivables, VAT summary, and DATEV export coverage.
+
+- Revenue by period.
+- Overdue receivables with aging buckets.
+- VAT summary by rate.
+- DATEV export coverage.
+- Top customers by revenue and overdue amount.
+- Expense summary by category.
+
+## Upcoming Modules
 
 ### Customer Portal
 

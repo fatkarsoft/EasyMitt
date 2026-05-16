@@ -667,6 +667,60 @@ a {
   margin-top: 8px;
 }
 
+.reporting-bar-chart {
+  align-items: end;
+  display: grid;
+  gap: 14px;
+  grid-auto-columns: minmax(56px, 1fr);
+  grid-auto-flow: column;
+  min-height: 220px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.reporting-bar-column {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  min-width: 56px;
+}
+
+.reporting-bar-column small {
+  color: #74788d;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.reporting-bar-column strong {
+  color: #243047;
+  font-size: 12px;
+}
+
+.reporting-bar-track {
+  align-items: end;
+  background: #edf0f2;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column-reverse;
+  height: 170px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.reporting-bar-fill {
+  display: block;
+  width: 100%;
+}
+
+.reporting-bar-net {
+  background: linear-gradient(180deg, #626ed4 0%, #50a5f1 100%);
+}
+
+.reporting-bar-tax {
+  background: linear-gradient(180deg, #f1b44c 0%, #ffd66e 100%);
+}
+
 .ops-card {
   border: 1px solid #e7ebf0;
 }

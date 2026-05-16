@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Ban, BellRing, CheckCircle2, Clock, CreditCard, Send, Stamp } from "lucide-react";
+import { ArrowLeft, Ban, BellRing, CheckCircle2, Clock, CreditCard, Mail, Send, Stamp } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import PageTitle from "../components/PageTitle.js";
 import ConfirmDialog from "../components/ConfirmDialog.js";
+import SendEmailModal from "../components/SendEmailModal.js";
 import { ApiError } from "../api/client.js";
 import { invoicesApi } from "../api/invoices.js";
 import { paymentsApi } from "../api/payments.js";
 import { dunningApi } from "../api/dunning.js";
+import { emailApi } from "../api/email.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
 import { getDocument } from "../utils/invoice.js";
@@ -20,21 +22,34 @@ export default function InvoiceDetail() {
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailLogs, setEmailLogs] = useState([]);
   const document = getDocument(draft);
 
   useEffect(() => {
+    let alive = true;
     Promise.all([
       invoicesApi.getDraft(id),
       paymentsApi.invoiceSummary(id).catch(() => null),
-      dunningApi.invoiceReminders(id).catch(() => [])
+      dunningApi.invoiceReminders(id).catch(() => []),
+      emailApi.getInvoiceLogs(id).catch(() => []),
     ])
-      .then(([draftData, paymentData, reminderData]) => {
+      .then(([draftData, paymentData, reminderData, logData]) => {
+        if (!alive) return;
         setDraft(draftData);
         setPaymentSummary(paymentData);
         setReminders(reminderData || []);
+        setEmailLogs(Array.isArray(logData) ? logData : []);
       })
-      .catch((err) => setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]));
+      .catch((err) => { if (alive) setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]); });
+    return () => { alive = false; };
   }, [id]);
+
+  async function handleSendEmail(body) {
+    await emailApi.sendInvoice(id, body);
+    setMessage(["success", t(language, "emailSent")]);
+    emailApi.getInvoiceLogs(id).then((logs) => setEmailLogs(Array.isArray(logs) ? logs : [])).catch(() => {});
+  }
 
   async function run(key, action) {
     if (!document) return;
@@ -84,6 +99,7 @@ export default function InvoiceDetail() {
                 <button className="btn btn-secondary" disabled={!!loading} onClick={() => run("xml", invoicesApi.exportXrechnung)}>{loading === "xml" ? `${t(language, "loading")}...` : t(language, "exportXml")}</button>
                 <button className="btn btn-secondary" disabled={!!loading} onClick={() => run("pdf", invoicesApi.exportZugferd)}>{loading === "pdf" ? `${t(language, "loading")}...` : t(language, "exportPdf")}</button>
                 <button className="btn btn-primary" disabled={!canWrite || !!loading} onClick={() => run("submit", invoicesApi.submitPeppol)}>{loading === "submit" ? `${t(language, "loading")}...` : t(language, "submit")}</button>
+                {canWrite && <button className="btn btn-outline-primary" disabled={!!loading} onClick={() => setEmailOpen(true)}><Mail size={16} /> {t(language, "sendEmail")}</button>}
               </div>
               <div className="invoice-lifecycle-panel mb-4">
                 <div>
@@ -130,6 +146,21 @@ export default function InvoiceDetail() {
                 <Info label={t(language, "issueDate")} value={document.core["BT-2"] || "-"} small />
                 <Info label={t(language, "total")} value={`${document.core["BT-112"]} ${document.core["BT-5"]}`} small />
               </div>
+              <div className="invoice-lifecycle-panel mb-4">
+                <div>
+                  <span className="status-pill status-info"><Mail size={14} /> {t(language, "emailDeliveryLogs")}</span>
+                  <p className="text-muted mb-0 mt-2">{t(language, "emailDeliveryLogsHint")}</p>
+                </div>
+                <div className="page-action-group" style={{ flexWrap: "wrap" }}>
+                  {emailLogs.length === 0
+                    ? <span className="status-pill status-muted">{t(language, "noEmailLogs")}</span>
+                    : emailLogs.map((log) => (
+                      <span className={`status-pill ${log.status === "Sent" ? "status-ready" : "status-risk"}`} key={log.id}>
+                        <Mail size={12} /> {log.toEmail} · {new Date(log.createdAtUtc).toLocaleString()} · {t(language, `emailStatus_${log.status}`)}
+                      </span>
+                    ))}
+                </div>
+              </div>
               <pre className="json-preview">{JSON.stringify(document, null, 2)}</pre>
             </div>
           </div>
@@ -144,6 +175,15 @@ export default function InvoiceDetail() {
         cancelLabel={t(language, "cancel")}
         onConfirm={() => transition("cancel", invoicesApi.cancelDraft)}
         onCancel={() => setConfirmCancel(false)}
+      />
+      <SendEmailModal
+        open={emailOpen}
+        language={language}
+        documentType="invoice"
+        defaultSubject={document ? `Rechnung ${document.core?.["BT-1"] || ""}` : ""}
+        defaultBody=""
+        onSend={handleSendEmail}
+        onClose={() => setEmailOpen(false)}
       />
     </>
   );

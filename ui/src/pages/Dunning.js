@@ -1,9 +1,11 @@
-import { BellRing, CalendarClock, CheckCircle2, Euro, MailPlus, Search, Users } from "lucide-react";
+import { BellRing, CalendarClock, CheckCircle2, Euro, Mail, MailPlus, Search, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageTitle from "../components/PageTitle.js";
+import SendEmailModal from "../components/SendEmailModal.js";
 import { ApiError } from "../api/client.js";
 import { dunningApi } from "../api/dunning.js";
+import { emailApi } from "../api/email.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
 
@@ -16,6 +18,7 @@ export default function Dunning() {
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -193,6 +196,11 @@ export default function Dunning() {
                   <button className="btn btn-danger w-100" type="button" disabled={!canWrite || saving} onClick={recordReminder}>
                     <MailPlus size={16} /> {saving ? `${t(language, "loading")}...` : t(language, "recordReminder")}
                   </button>
+                  {canWrite && (
+                    <button className="btn btn-outline-primary w-100 mt-2" type="button" onClick={() => setEmailOpen(true)}>
+                      <Mail size={16} /> {t(language, "sendEmail")}
+                    </button>
+                  )}
                   {selected.lastReminderAtUtc && <p className="text-muted mb-0 mt-3">{t(language, "lastReminder")}: {new Date(selected.lastReminderAtUtc).toLocaleString()}</p>}
                 </>
               )}
@@ -200,6 +208,20 @@ export default function Dunning() {
           </div>
         </div>
       </div>
+      <SendEmailModal
+        open={emailOpen}
+        language={language}
+        documentType="dunning"
+        defaultSubject={selected ? `Mahnung – Rechnung ${selected.invoiceNumber}` : ""}
+        defaultBody={selected ? `Sehr geehrte Damen und Herren,\n\nhiermit erinnern wir Sie an die offene Zahlung von ${money(selected.openAmount)} für Rechnung ${selected.invoiceNumber}.\n\nMit freundlichen Grüßen\nEasyMitt` : ""}
+        onSend={async (body) => {
+          if (!selected) return;
+          await emailApi.sendDunning(selected.invoiceDraftId, body);
+          setMessage(["success", t(language, "emailSent")]);
+          setEmailOpen(false);
+        }}
+        onClose={() => setEmailOpen(false)}
+      />
     </>
   );
 }

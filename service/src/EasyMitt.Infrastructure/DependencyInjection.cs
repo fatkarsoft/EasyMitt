@@ -1,3 +1,4 @@
+using EasyMitt.Application.Abstractions.Email;
 using EasyMitt.Application.Abstractions.Identity;
 using EasyMitt.Application.Abstractions.Archiving;
 using EasyMitt.Application.Abstractions.Communication;
@@ -6,6 +7,7 @@ using EasyMitt.Application.Abstractions.Transformation;
 using EasyMitt.Infrastructure.Archiving;
 using EasyMitt.Infrastructure.Communication;
 using EasyMitt.Infrastructure.ElectronicInvoicing;
+using EasyMitt.Infrastructure.Email;
 using EasyMitt.Infrastructure.Identity;
 using EasyMitt.Infrastructure.Ingestion;
 using EasyMitt.Infrastructure.Persistence;
@@ -36,8 +38,18 @@ public static class DependencyInjection
         services.AddScoped<IExpenseRepository, ExpenseRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IDunningRepository, DunningRepository>();
+        services.AddScoped<IReportingRepository, ReportingRepository>();
         services.AddScoped<IDatevSettingsRepository, DatevSettingsRepository>();
         services.AddScoped<IDatevExportLogRepository, DatevExportLogRepository>();
+        services.AddScoped<IComplianceRepository, ComplianceRepository>();
+        services.AddScoped<IEmailDeliveryLogRepository, EmailDeliveryLogRepository>();
+
+        var emailOptions = ReadEmailOptions(configuration);
+        services.AddSingleton(Options.Create(emailOptions));
+        if (emailOptions.IsConfigured)
+            services.AddSingleton<IEmailService, SmtpEmailService>();
+        else
+            services.AddSingleton<IEmailService, NoOpEmailService>();
 
         var configuredArchiveRoot = configuration["Archive:LocalRoot"];
         var archiveRoot = string.IsNullOrWhiteSpace(configuredArchiveRoot)
@@ -92,6 +104,21 @@ public static class DependencyInjection
             SigningKey = section["SigningKey"] ?? "",
             TokenLifetimeMinutes = int.TryParse(section["TokenLifetimeMinutes"], out var minutes) ? minutes : 60,
             Users = users,
+        };
+    }
+
+    private static EmailOptions ReadEmailOptions(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("Email");
+        return new EmailOptions
+        {
+            SmtpHost = section["SmtpHost"] ?? "",
+            SmtpPort = int.TryParse(section["SmtpPort"], out var port) ? port : 587,
+            SmtpUser = section["SmtpUser"] ?? "",
+            SmtpPassword = section["SmtpPassword"] ?? "",
+            EnableSsl = !bool.TryParse(section["EnableSsl"], out var ssl) || ssl,
+            FromAddress = section["FromAddress"] ?? "noreply@easymitt.de",
+            FromName = section["FromName"] ?? "EasyMitt",
         };
     }
 

@@ -50,6 +50,14 @@ public static class MessageKeys
     public const string DunningFound = "dunning.found";
     public const string DunningReminderCreated = "dunning.reminder_created";
     public const string DunningNotFound = "dunning.not_found";
+    public const string ReportingOverviewFound = "reporting.overview_found";
+    public const string ComplianceDashboardFound = "compliance.dashboard_found";
+    public const string ComplianceTimelineFound = "compliance.timeline_found";
+    public const string ComplianceDocumentNotFound = "compliance.document_not_found";
+    public const string EmailSent = "email.sent";
+    public const string EmailFailed = "email.failed";
+    public const string EmailLogsFound = "email.logs_found";
+    public const string EmailDocumentNotFound = "email.document_not_found";
     public const string SystemHealthy = "system.healthy";
     public const string ErrorUnexpected = "error.unexpected";
     public const string ErrorBadRequest = "error.bad_request";

@@ -65,7 +65,10 @@ app.MapQuoteEndpoints();
 app.MapExpenseEndpoints();
 app.MapPaymentEndpoints();
 app.MapDunningEndpoints();
+app.MapReportingEndpoints();
 app.MapDatevEndpoints();
 app.MapDatevSettingsEndpoints();
+app.MapComplianceEndpoints();
+app.MapEmailEndpoints();
 
 app.Run();
