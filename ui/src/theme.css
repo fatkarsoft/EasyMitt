@@ -1700,3 +1700,115 @@ label {
     gap: 8px;
   }
 }
+
+.ai-suggestion-pill {
+  background: #fffbea;
+  border: 1px solid #f4d35e;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 12px;
+  font-size: 13px;
+}
+
+.ai-suggestion-pill.is-decided {
+  background: #f9f9fb;
+  border-color: #e0e0e6;
+}
+
+.ai-suggestion-pill-warning { background: #fff8e1; border-color: #ffd54f; }
+.ai-suggestion-pill-success { background: #ecfdf3; border-color: #34d399; }
+.ai-suggestion-pill-secondary { background: #f4f4f7; border-color: #d4d4d8; }
+
+.ai-pill-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.7);
+}
+
+.ai-pill-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai-pill-label {
+  color: #6b6b76;
+  font-weight: 500;
+}
+
+.ai-pill-value {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.ai-pill-rationale {
+  color: #7a7a86;
+  font-size: 12px;
+}
+
+.ai-pill-confidence {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.ai-pill-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ai-pill-status {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ai-match-row {
+  background: #fafafa;
+  border: 1px solid #ececf0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-match-row.is-preselected {
+  background: #ecfdf3;
+  border-color: #34d399;
+}
+
+.ai-match-confidence-bar {
+  height: 6px;
+  background: #ececf0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ai-match-confidence-fill {
+  height: 100%;
+  background: #34d399;
+  transition: width 200ms ease;
+}
+
+.ai-match-confidence-fill.confidence-warning { background: #f59e0b; }
+.ai-match-confidence-fill.confidence-secondary { background: #9ca3af; }

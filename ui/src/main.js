@@ -26,6 +26,7 @@ import InvoiceDetail from "./pages/InvoiceDetail.js";
 import Datev from "./pages/Datev.js";
 import DatevPreview from "./pages/DatevPreview.js";
 import Compliance from "./pages/Compliance.js";
+import AiActivity from "./pages/AiActivity.js";
 import Reporting from "./pages/Reporting.js";
 import Settings from "./pages/Settings.js";
 import PortalShell from "./pages/PortalShell.js";
@@ -63,6 +64,7 @@ function ProtectedApp() {
         <Route path="/datev" element={<Datev />} />
         <Route path="/datev/preview" element={<DatevPreview />} />
         <Route path="/compliance" element={<Compliance />} />
+        <Route path="/ai" element={<AiActivity />} />
         <Route path="/reporting" element={<Reporting />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

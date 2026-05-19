@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using EasyMitt.Api.Responses;
 using EasyMitt.Api.Security;
+using EasyMitt.Application.Abstractions.Ai;
 using EasyMitt.Application.Abstractions.Localization;
 using EasyMitt.Application.Abstractions.Persistence;
 using EasyMitt.Application.Abstractions.Transformation;
@@ -76,7 +77,7 @@ public static class ExpenseEndpoints
             : Results.Ok(responseFactory.Success(httpContext, localizer.Get(MessageKeys.ExpenseStatusUpdated), data));
     }
 
-    private static async Task<IResult> ScanAsync(IFormFile? file, IScannedInvoiceImportAnalyzer analyzer, ApiResponseFactory responseFactory, IAppLocalizer localizer, HttpContext httpContext, CancellationToken cancellationToken)
+    private static async Task<IResult> ScanAsync(IFormFile? file, IScannedInvoiceImportAnalyzer analyzer, IExpenseCategorySuggester categorySuggester, ApiResponseFactory responseFactory, IAppLocalizer localizer, HttpContext httpContext, CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0)
         {
@@ -87,8 +88,22 @@ public static class ExpenseEndpoints
         {
             await using var stream = file.OpenReadStream();
             var raw = await analyzer.AnalyzeAsync(stream, file.FileName, file.ContentType, cancellationToken);
+            var suggestion = categorySuggester.SuggestFromScan(raw);
             var expense = MapExpense(raw);
-            return Results.Ok(responseFactory.Success(httpContext, localizer.Get(MessageKeys.ExpenseScanMapped), new { raw, expense }));
+            var enriched = new ExpenseUpsertDto
+            {
+                VendorName = expense.VendorName,
+                DocumentNumber = expense.DocumentNumber,
+                IssueDate = expense.IssueDate,
+                Category = suggestion.Confidence >= 0.6m ? suggestion.Category : expense.Category,
+                NetAmount = expense.NetAmount,
+                TaxAmount = expense.TaxAmount,
+                TotalAmount = expense.TotalAmount,
+                CurrencyCode = expense.CurrencyCode,
+                DatevCreditorAccount = expense.DatevCreditorAccount,
+                Notes = expense.Notes,
+            };
+            return Results.Ok(responseFactory.Success(httpContext, localizer.Get(MessageKeys.ExpenseScanMapped), new { raw, expense = enriched, suggestion }));
         }
         catch (NotSupportedException)
         {

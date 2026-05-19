@@ -1,6 +1,6 @@
 # EasyMitt Roadmap
 
-Last updated: 2026-05-19 (Customer Portal)
+Last updated: 2026-05-19 (Advanced AI Accounting)
 
 ## Product North Star
 
@@ -110,29 +110,40 @@ EasyMitt is a Germany-focused SaaS platform for e-invoicing and accounting opera
 - TR/EN/DE i18n.
 - Migration `20260516184328_CustomerPortalAccess` applied.
 
-## Next Major Module
-
 ### Advanced AI Accounting
 
-Goal: Reduce manual data entry and classification effort using local AI plus the data already in the system.
+- `ai_suggestions` audit table (Pending / Accepted / Rejected / Superseded) with target type+id and JSON payload.
+- Backend heuristics in `EasyMitt.Domain.Accounting` (pure functions, unit-testable without DB):
+  `ExpenseCategoryHeuristics`, `PaymentMatchScorer`, `DatevAccountHeuristics`, `InvoiceFieldHeuristics`.
+- Application abstractions `IExpenseCategorySuggester`, `IDatevAccountSuggester`, `IPaymentMatchScorer`, `IMissingFieldSuggester`, `IAiSuggestionRepository`.
+- Infrastructure impls in `EasyMitt.Infrastructure.Ai.*` plus `AiSuggestionRepository`.
+- Endpoints under `/api/v1/ai`: `POST /datev-suggest`, `POST /category-suggest`, `GET /payment-suggest/{txId}`, `GET /invoice-field-suggest/{invoiceId}`, `GET /suggestions`, `GET/POST /suggestions/{id}` accept|reject|retry, `POST /suggestions/log`.
+- Receipt scan flow attaches a category suggestion (heuristic on vendor + line text + amount).
+- Bank-tx → invoice scorer with weighted confidence (amount-exact 0.6 / IBAN 0.2 / name 0.1 / date 0.1) and auto pre-selection at confidence ≥ 0.85.
+- Compliance Center risk list shows "Suggested fix" column (e.g. Buyer VAT looks like Leitweg-ID → BT-10).
+- Reusable `<AiSuggestionPill />` component in TR / EN / DE used on ExpenseForm, InvoiceDetail, Payments page, and Compliance.
+- `/ai` activity panel (sidebar entry) shows recent suggestions with type+status filters; Admin/Accountant can re-trigger Rejected (creates new Pending + supersedes old).
+- Migration `20260519101616_AiSuggestions` applied.
 
-- Receipt category suggestion from scan-service vision output.
-- DATEV account suggestion based on customer + category + VAT rate.
-- Bank transaction → invoice match with confidence score.
-- Missing e-invoice field suggestions in Compliance Center.
-- Audit log of suggestion accepted vs. rejected.
-
-## Upcoming Modules
+## Next Major Module
 
 ### Production Hardening
 
-- Real secret management.
-- S3 Object Lock or equivalent immutable archive.
-- Schematron validation pipeline.
-- Production Peppol Access Point.
-- Background jobs.
-- Email provider.
-- Observability.
+Goal: Move from local-first developer experience to a production-runnable deployment.
+
+- Real secret management (no plaintext keys in `appsettings.json`).
+- S3 Object Lock or equivalent immutable archive for invoice retention.
+- Schematron validation pipeline for XRechnung/ZUGFeRD.
+- Production Peppol Access Point (replace the `NoOpInvoiceDispatch` stub).
+- Background job processing (email retries, scheduled DATEV exports, reminder runs).
+- Production-grade email provider (replace SMTP/NoOp fallback).
+- Observability (structured logs, metrics, traces, healthchecks beyond `/health`).
+
+## Upcoming Modules
+
+### LLM-Backed AI Suggestions
+
+Optional follow-up: replace the heuristic `IExpenseCategorySuggester` and field-fix `IMissingFieldSuggester` with Ollama-vision-backed implementations behind the same interfaces, with the existing heuristic kept as fallback.
 
 ## Backlog
 

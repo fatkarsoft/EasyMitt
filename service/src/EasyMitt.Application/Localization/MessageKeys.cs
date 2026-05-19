@@ -73,6 +73,17 @@ public static class MessageKeys
     public const string PortalQuoteNotResponsive = "portal.quote_not_responsive";
     public const string PortalInvoiceNotFound = "portal.invoice_not_found";
     public const string PortalQuoteNotFound = "portal.quote_not_found";
+    public const string AiSuggestionsFound = "ai.suggestions_found";
+    public const string AiSuggestionAccepted = "ai.suggestion_accepted";
+    public const string AiSuggestionRejected = "ai.suggestion_rejected";
+    public const string AiSuggestionRetried = "ai.suggestion_retried";
+    public const string AiSuggestionNotFound = "ai.suggestion_not_found";
+    public const string AiSuggestionNotPending = "ai.suggestion_not_pending";
+    public const string AiCategorySuggested = "ai.category_suggested";
+    public const string AiDatevAccountSuggested = "ai.datev_account_suggested";
+    public const string AiPaymentMatchSuggested = "ai.payment_match_suggested";
+    public const string AiInvoiceFieldsSuggested = "ai.invoice_fields_suggested";
+    public const string AiDocumentNotFound = "ai.document_not_found";
     public const string SystemHealthy = "system.healthy";
     public const string ErrorUnexpected = "error.unexpected";
     public const string ErrorBadRequest = "error.bad_request";

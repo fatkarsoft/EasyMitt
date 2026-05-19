@@ -1,6 +1,6 @@
 # EasyMitt Agent Handoff
 
-Last updated: 2026-05-19 (Customer Portal)
+Last updated: 2026-05-19 (Advanced AI Accounting)
 
 ## Current Goal
 
@@ -10,7 +10,57 @@ The immediate development style requested by the user is to complete large modul
 
 ## Latest Completed Work
 
-The latest completed module is `Customer Portal`:
+The latest completed module is `Advanced AI Accounting`:
+
+- Migration `20260519101616_AiSuggestions` applied. New table `ai_suggestions` with id, company_id, suggestion_type (`ExpenseCategory` | `DatevAccount` | `PaymentMatch` | `InvoiceField`), target_type, target_id, payload_json, status (`Pending` | `Accepted` | `Rejected` | `Superseded`), created_at_utc, decided_at_utc, decided_by_user_email, superseded_by_id.
+- Domain (pure functions, no DB — unit-testable): `EasyMitt.Domain.Accounting.ExpenseCategoryHeuristics`, `PaymentMatchScorer`, `DatevAccountHeuristics`, `InvoiceFieldHeuristics`.
+- Application abstractions: `IExpenseCategorySuggester`, `IDatevAccountSuggester`, `IPaymentMatchScorer`, `IMissingFieldSuggester`, `IAiSuggestionRepository`. New DTOs in `EasyMitt.Application.Dtos.Ai`.
+- Infrastructure impls in `EasyMitt.Infrastructure.Ai.*`: `ExpenseCategorySuggester`, `DatevAccountSuggester` (uses `IDatevSettingsRepository` tax-key + expense-account mappings as source of truth), `PaymentMatchScorerService`, `MissingFieldSuggester`. `AiSuggestionRepository` in `Persistence/Repositories/`.
+- Endpoints under `/api/v1/ai`:
+  - `POST /datev-suggest` (body `{documentType, documentId}` → account + confidence + taxKey + matchedRule)
+  - `POST /category-suggest` (body `{vendorName, lineDescriptions, totalAmount, currencyCode}`)
+  - `GET /payment-suggest/{bankTransactionId}` (returns confidence + autoPreselect for top match)
+  - `GET /invoice-field-suggest/{invoiceDraftId}`
+  - `GET /suggestions` (filters: suggestionType, status, targetType, targetId, take)
+  - `GET /suggestions/{id}`
+  - `POST /suggestions/{id}/accept` | `/reject` | `/retry` (retry creates new Pending + supersedes old)
+  - `POST /suggestions/log?status=...` for client-side accept/reject logging.
+- Authorization: read = `InvoiceRead` (Admin/Accountant/Auditor); accept/reject/retry = `InvoiceWrite` (Admin/Accountant).
+- Scan endpoint (`POST /api/v1/expenses/scan`) now attaches a `suggestion` object (category + confidence + rationale) to the response and pre-fills the expense category when confidence ≥ 0.6.
+- Bank-tx scorer uses weighted blend (amount-exact 0.6 / IBAN 0.2 / name fuzzy 0.1 / date proximity 0.1) and only auto-pre-selects the top suggestion at confidence ≥ 0.85.
+- DI: `IConfigureWarnings` ignores `RelationalEventId.PendingModelChangesWarning` in DbContext setup to avoid runtime-only false-positive vs CLI snapshot diff.
+- New `MessageKeys` for AI flows localized for EN / TR / DE (`AiSuggestionsFound`, `AiSuggestionAccepted`, `AiSuggestionRejected`, `AiSuggestionRetried`, `AiSuggestionNotFound`, `AiSuggestionNotPending`, `AiCategorySuggested`, `AiDatevAccountSuggested`, `AiPaymentMatchSuggested`, `AiInvoiceFieldsSuggested`, `AiDocumentNotFound`).
+- Frontend: `ui/src/components/AiSuggestionPill.js` reusable pill (label + value + confidence% + rationale tooltip + accept/reject; status `Accepted` / `Rejected` is displayed instead of buttons after decision).
+- Frontend: `ui/src/api/ai.js`.
+- Frontend integration:
+  - `ExpenseForm.js`: category suggestion pill above the Category field (auto-computed from vendor/notes/amount with 250ms debounce, and from scan response); DATEV credit-account pill above the DATEV field (loaded on edit page).
+  - `InvoiceDetail.js`: DATEV revenue-account pill + a "Suggested fix" list rendering field-correction suggestions per invoice.
+  - `Payments.js`: replaces the legacy suggestions list with the AI scorer endpoint, renders a colored confidence progress bar per row, pre-selects top suggestion when confidence ≥ 0.85, and logs the accepted match into the AI audit log when the user allocates.
+  - `Compliance.js`: new "Suggested fix" column on the document risk table (loads field suggestions for high/medium risk rows in the top 25). Clicking "Apply" logs the decision and navigates to the invoice detail.
+  - `AiActivity.js`: new `/ai` sidebar entry (Auditor read-only by backend authorization; Admin/Accountant can re-trigger Rejected). Filters by suggestionType and status; rejected rows expose a regenerate button.
+- ~60 new i18n keys added across TR / EN / DE (`aiActivity`, `aiSuggestions`, `aiSuggestionPill*`, `aiSuggestionType*`, `aiSuggestion*` status names, `aiCategory*` labels, `aiCategoryRationale_*`, `aiFieldRationale_*`, `aiSuggestedFix`, `aiSuggestionApply`, `aiMatchConfidence`, `aiAutoPreselected`, `aiNoSuggestions`, `aiRecentSuggestions`).
+- `IAiSuggestionRepository` → `AiSuggestionRepository` and the four suggesters wired in `EasyMitt.Infrastructure.DependencyInjection`. `AiEndpoints` registered in `Program.cs`.
+
+Latest validation known to pass:
+
+```powershell
+dotnet build .\service\EasyMitt.slnx
+# Build succeeded. 0 Warning(s). 0 Error(s).
+cd ui
+npm run lint
+# clean
+npm run build
+# Built in ~2.8s.
+```
+
+Live end-to-end smoke test (admin@easymitt.local / Admin123!):
+- `POST /api/v1/ai/datev-suggest {documentType:"Expense",documentId:<id>}` → envelope `success=true`, data `{account:"4806", taxKey:"9", vatRate:19, confidence:0.95, rationale:"category_mapped", matchedRule:"settings.expense_mapping"}`.
+- `POST /api/v1/ai/category-suggest {vendorName:"Lufthansa", lineDescriptions:"Flight FRA-BER", ...}` → `{category:"Travel", confidence:0.91, rationale:"keyword_match"}`.
+- `GET /api/v1/ai/suggestions` → envelope `success=true, message="AI önerileri yüklendi.", count=0` initially; after `POST /suggestions/log?status=Accepted` count=1, status=Accepted.
+- `GET /api/v1/ai/payment-suggest/{txId}` → returns invoice match with confidence 0.63 (reasons: amount_exact + date_close), autoPreselect=false.
+- API on 5095 + UI on 5173 verified up.
+
+The previous completed module is `Customer Portal`:
 
 - Backend entity: `CustomerPortalAccessEntity` → `customer_portal_access` table with token_hash (SHA-256, unique), token_prefix (first 8 chars for display), status (Active/Revoked), expires_at_utc, last_used_at_utc, created_by_user_email.
 - Backend: `ICustomerPortalAccessRepository` / `CustomerPortalAccessRepository` (Infrastructure).
@@ -282,6 +332,19 @@ Expected high-level dirty state includes:
 - Tokens are stored as SHA-256 hashes; plaintext is shown once at issue.
 - TR/EN/DE i18n on every portal surface.
 
+### Advanced AI Accounting
+
+- `ai_suggestions` audit table (Pending / Accepted / Rejected / Superseded), JSON payload per suggestion, decided-by-user email + timestamp.
+- Domain heuristics (pure functions, no DB): `ExpenseCategoryHeuristics`, `PaymentMatchScorer` (weighted blend amount 0.6 / IBAN 0.2 / name 0.1 / date 0.1), `DatevAccountHeuristics`, `InvoiceFieldHeuristics` (Leitweg-ID detection, etc.).
+- Endpoints under `/api/v1/ai`: `datev-suggest`, `category-suggest`, `payment-suggest/{txId}`, `invoice-field-suggest/{invoiceId}`, `suggestions` (list / accept / reject / retry / log).
+- Receipt scan flow attaches a category suggestion + confidence; ExpenseForm renders a yellow accept/reject pill above the Category field.
+- DATEV revenue/expense account suggestion driven by `DatevSettings` tax-key + expense-account mappings (source of truth), shown on ExpenseForm + InvoiceDetail.
+- Compliance Center risk list has a "Suggested fix" column for high/medium risk rows (e.g. "Buyer VAT looks like a Leitweg-ID → BT-10").
+- Payments page shows confidence progress bar per match, auto pre-selects the top suggestion at confidence ≥ 0.85.
+- New `/ai` sidebar page (AiActivity): filter by type+status, retry rejected suggestions (creates new Pending + supersedes old).
+- Reusable `<AiSuggestionPill />` component with TR/EN/DE labels.
+- Migration `20260519101616_AiSuggestions` applied.
+
 ## Local Services
 
 Default ports:
@@ -317,20 +380,22 @@ Demo users:
 
 ## Suggested Next Work
 
-Customer Portal is now complete. The next recommended large module is `Advanced AI Accounting`, because:
+Advanced AI Accounting is now complete. The next recommended large module is `Production Hardening`, because:
 
-- Receipt classification, DATEV account suggestions, and bank-tx matching confidence are user-visible AI wins that fit the existing scan-service infrastructure.
-- The underlying data (Expenses, BankTransactions, DATEV settings) and the Ollama-backed scan service are already wired up — no new external dependencies needed.
+- The local-first developer experience is fully functional end-to-end; the remaining gaps that block a real deployment are infrastructure and operational, not feature surface.
+- Sensitive items (HMAC signing key, SMTP credentials, DB password) currently live in `appsettings.json`; archive is local disk; Peppol dispatch is a no-op.
 
-Recommended scope for Advanced AI Accounting:
+Recommended scope for Production Hardening:
 
-- Receipt → category suggestion: extend `scan-service` to return a suggested category and confidence per receipt; surface in `ExpenseForm.js` as auto-fill + "accept" UI.
-- DATEV account suggestion: based on customer/category/VAT rate, propose a DATEV revenue/expense account when the user is about to save; backend service in Domain or Application.
-- Bank transaction matching confidence: re-use existing `PaymentRepository.SuggestInvoicesAsync` but return a 0–1 confidence; UI shows a confidence bar and auto-selects high-confidence matches.
-- Missing e-invoice field suggestions: extend Compliance Center to recommend fixes (e.g. "Buyer VAT looks like a Leitweg-ID — move it to BT-10?").
-- All suggestions logged for audit (which suggestion was accepted/rejected).
+- Real secret management — pull `Authentication:SigningKey`, `Email:Smtp*`, and `ConnectionStrings:PostgreSQL` from a secret store (Azure Key Vault / AWS Secrets Manager / dotnet user-secrets, depending on host).
+- Immutable archive — replace `LocalFileImmutableArchiveStore` with S3 Object Lock (or Azure Blob immutable policies) so GoBD archive bytes can't be altered after writing.
+- Schematron validation pipeline — run KoSIT/CIUS Schematron rules before issuing XRechnung/ZUGFeRD; surface failures as compliance errors.
+- Production Peppol Access Point — replace `NoOpInvoiceDispatch` with a real AP integration (likely via partner gateway).
+- Background job processing — move email retries, scheduled DATEV exports, and reminder runs off the request path.
+- Observability — structured logs (Serilog), OpenTelemetry traces/metrics, deeper healthchecks (DB, archive, SMTP).
+- Production email provider — replace `SmtpEmailService` with a transactional provider (Postmark / SendGrid / Mailgun) and tracked delivery/bounce webhooks.
 
-Alternative next module: `Production Hardening` (real secret management, S3 Object Lock immutable archive, Schematron validation pipeline, production Peppol AP, background jobs, observability).
+Alternative next module: `LLM-Backed AI Suggestions` (replace heuristic suggesters with Ollama-vision-backed implementations behind the existing interfaces; the heuristic stays as fallback).
 
 ## How To Continue In Another Agent
 

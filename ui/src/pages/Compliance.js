@@ -1,8 +1,9 @@
-import { AlertCircle, AlertTriangle, CheckCircle2, Clock, FileCheck, FileSpreadsheet, FileText, Filter, RefreshCw, Shield, ShieldCheck } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, FileCheck, FileSpreadsheet, FileText, Filter, RefreshCw, Shield, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client.js";
 import { complianceApi } from "../api/compliance.js";
+import { aiApi } from "../api/ai.js";
 import PageTitle from "../components/PageTitle.js";
 import { t } from "../i18n.js";
 import { useAuth } from "../state/auth.js";
@@ -83,7 +84,8 @@ function TimelinePanel({ timeline, language, onClose }) {
 }
 
 export default function Compliance() {
-  const { language } = useAuth();
+  const { language, canWrite } = useAuth();
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState(null);
   const [timeline, setTimeline] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -91,6 +93,7 @@ export default function Compliance() {
   const [message, setMessage] = useState(null);
   const [filters, setFilters] = useState({ from: "", to: "", status: "", riskLevel: "" });
   const [activeFilters, setActiveFilters] = useState({});
+  const [fieldSuggestionsByInvoice, setFieldSuggestionsByInvoice] = useState({});
 
   async function load(appliedFilters = activeFilters) {
     setLoading(true);
@@ -143,6 +146,38 @@ export default function Compliance() {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (!dashboard) return;
+    const targets = (dashboard.documents || [])
+      .filter((d) => d.riskLevel === "high" || d.riskLevel === "medium")
+      .slice(0, 25);
+    if (targets.length === 0) return;
+    let alive = true;
+    Promise.all(targets.map((d) =>
+      aiApi.suggestInvoiceFields(d.invoiceDraftId)
+        .then((items) => [d.invoiceDraftId, Array.isArray(items) ? items : []])
+        .catch(() => [d.invoiceDraftId, []])
+    )).then((pairs) => {
+      if (!alive) return;
+      const next = {};
+      for (const [id, items] of pairs) next[id] = items;
+      setFieldSuggestionsByInvoice(next);
+    });
+    return () => { alive = false; };
+  }, [dashboard]);
+
+  async function applyFieldSuggestion(invoiceDraftId, suggestion) {
+    try {
+      await aiApi.log({
+        suggestionType: "InvoiceField",
+        targetType: "Invoice",
+        targetId: invoiceDraftId,
+        payload: suggestion
+      }, "Accepted");
+    } catch { /* ignore */ }
+    navigate(`/invoices/${invoiceDraftId}`);
+  }
 
   const readiness = dashboard?.readiness;
   const documents = dashboard?.documents || [];
@@ -266,6 +301,7 @@ export default function Compliance() {
                         <th>DATEV</th>
                         <th>XRechnung</th>
                         <th>{t(language, "complianceRiskLevel")}</th>
+                        <th>{t(language, "aiSuggestedFix")}</th>
                         <th className="text-right">{t(language, "actions")}</th>
                       </tr>
                     </thead>
@@ -307,6 +343,21 @@ export default function Compliance() {
                             <span className={`status-pill status-${RISK_VARIANT[doc.riskLevel] || "muted"}`}>
                               {t(language, `complianceRisk_${doc.riskLevel}`)}
                             </span>
+                          </td>
+                          <td>
+                            {(fieldSuggestionsByInvoice[doc.invoiceDraftId] || []).length === 0
+                              ? <span className="text-muted font-size-12">—</span>
+                              : (fieldSuggestionsByInvoice[doc.invoiceDraftId] || []).slice(0, 1).map((s, i) => (
+                                <div key={i} className="d-flex align-items-center" style={{ gap: 6 }}>
+                                  <Sparkles size={12} className="text-warning" />
+                                  <small className="text-muted">
+                                    <strong>{s.fieldCode}</strong> · {t(language, `aiFieldRationale_${s.rationale}`) || s.rationale}
+                                  </small>
+                                  <button type="button" className="btn btn-sm btn-light" disabled={!canWrite} onClick={() => applyFieldSuggestion(doc.invoiceDraftId, s)}>
+                                    {t(language, "aiSuggestionApply")}
+                                  </button>
+                                </div>
+                              ))}
                           </td>
                           <td className="text-right">
                             <div className="table-action-group justify-content-end">

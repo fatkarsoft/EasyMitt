@@ -1,8 +1,9 @@
-import { Banknote, FileUp, Link2, Search } from "lucide-react";
+import { Banknote, FileUp, Link2, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import PageTitle from "../components/PageTitle.js";
 import { ApiError } from "../api/client.js";
 import { paymentsApi } from "../api/payments.js";
+import { aiApi } from "../api/ai.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
 
@@ -88,7 +89,8 @@ export default function Payments() {
     setMatching(true);
     setMessage(null);
     try {
-      setSuggestions(await paymentsApi.suggestions(transaction.id));
+      const data = await aiApi.suggestPaymentMatches(transaction.id);
+      setSuggestions(Array.isArray(data) ? data : []);
     } catch (err) {
       setMessage(["danger", err instanceof ApiError ? err.message : "Suggestions failed"]);
     } finally {
@@ -106,6 +108,14 @@ export default function Payments() {
         invoiceDraftId: suggestion.invoiceDraftId,
         amount
       });
+      try {
+        await aiApi.log({
+          suggestionType: "PaymentMatch",
+          targetType: "BankTransaction",
+          targetId: selected.id,
+          payload: suggestion
+        }, "Accepted");
+      } catch { /* ignore */ }
       setMessage(["success", t(language, "paymentAllocated")]);
       setSelected(null);
       setSuggestions([]);
@@ -200,16 +210,35 @@ export default function Payments() {
               <p className="text-muted">{selected ? selected.description : t(language, "selectTransactionForMatch")}</p>
               {matching ? <div className="text-muted">{t(language, "loading")}...</div> : suggestions.length === 0 ? <div className="text-muted">{t(language, "noSuggestions")}</div> : (
                 <div className="datev-mapping-list">
-                  {suggestions.map((suggestion) => (
-                    <div className="payment-suggestion" key={suggestion.invoiceDraftId}>
-                      <div>
-                        <strong>{suggestion.invoiceNumber}</strong>
-                        <small>{suggestion.buyerName} · {t(language, "openAmount")}: {Number(suggestion.openAmount).toFixed(2)}</small>
-                        <span className="status-pill status-info">{suggestion.score}%</span>
+                  {suggestions.map((suggestion) => {
+                    const pct = Math.round((Number(suggestion.confidence) || 0) * 100);
+                    const color = pct >= 85 ? "" : pct >= 65 ? "confidence-warning" : "confidence-secondary";
+                    return (
+                      <div className={`ai-match-row ${suggestion.autoPreselect ? "is-preselected" : ""}`} key={suggestion.invoiceDraftId}>
+                        <div className="d-flex justify-content-between align-items-center">
+                          <div>
+                            <strong>{suggestion.invoiceNumber || "—"}</strong>
+                            <small className="d-block text-muted">{suggestion.buyerName} · {t(language, "openAmount")}: {Number(suggestion.openAmount).toFixed(2)}</small>
+                          </div>
+                          <span className="font-weight-semibold font-size-12">
+                            <Sparkles size={12} className="mr-1" />{pct}%
+                          </span>
+                        </div>
+                        <div className="ai-match-confidence-bar">
+                          <div className={`ai-match-confidence-fill ${color}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        {suggestion.autoPreselect && (
+                          <small className="text-success font-size-11">{t(language, "aiAutoPreselected")}</small>
+                        )}
+                        <div className="d-flex justify-content-between align-items-center">
+                          <small className="text-muted font-size-11">
+                            {(suggestion.reasons || []).map((r) => `· ${r}`).join(" ")}
+                          </small>
+                          <button className="btn btn-sm btn-primary" type="button" disabled={!canWrite} onClick={() => allocate(suggestion)}>{t(language, "match")}</button>
+                        </div>
                       </div>
-                      <button className="btn btn-sm btn-primary" type="button" disabled={!canWrite} onClick={() => allocate(suggestion)}>{t(language, "match")}</button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

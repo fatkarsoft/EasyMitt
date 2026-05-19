@@ -1,6 +1,8 @@
+using EasyMitt.Application.Abstractions.Ai;
 using EasyMitt.Application.Abstractions.Email;
 using EasyMitt.Application.Abstractions.Identity;
 using EasyMitt.Application.Abstractions.Portal;
+using EasyMitt.Infrastructure.Ai;
 using EasyMitt.Infrastructure.Portal;
 using EasyMitt.Application.Abstractions.Archiving;
 using EasyMitt.Application.Abstractions.Communication;
@@ -29,7 +31,9 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("ConnectionStrings:PostgreSQL tanımlı değil.");
 
         services.AddDbContext<EasyMittDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options
+                .UseNpgsql(connectionString)
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
         services.AddScoped<EasyMittDbInitializer>();
         services.AddScoped<IInvoiceDraftRepository, InvoiceDraftRepository>();
@@ -47,6 +51,11 @@ public static class DependencyInjection
         services.AddScoped<IEmailDeliveryLogRepository, EmailDeliveryLogRepository>();
         services.AddScoped<ICustomerPortalAccessRepository, CustomerPortalAccessRepository>();
         services.AddSingleton<IPortalTokenGenerator, PortalTokenGenerator>();
+        services.AddScoped<IAiSuggestionRepository, AiSuggestionRepository>();
+        services.AddSingleton<IExpenseCategorySuggester, ExpenseCategorySuggester>();
+        services.AddScoped<IDatevAccountSuggester, DatevAccountSuggester>();
+        services.AddScoped<IPaymentMatchScorer, PaymentMatchScorerService>();
+        services.AddScoped<IMissingFieldSuggester, MissingFieldSuggester>();
 
         var emailOptions = ReadEmailOptions(configuration);
         services.AddSingleton(Options.Create(emailOptions));

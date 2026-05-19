@@ -4,11 +4,13 @@ import { Link, useParams } from "react-router-dom";
 import PageTitle from "../components/PageTitle.js";
 import ConfirmDialog from "../components/ConfirmDialog.js";
 import SendEmailModal from "../components/SendEmailModal.js";
+import AiSuggestionPill from "../components/AiSuggestionPill.js";
 import { ApiError } from "../api/client.js";
 import { invoicesApi } from "../api/invoices.js";
 import { paymentsApi } from "../api/payments.js";
 import { dunningApi } from "../api/dunning.js";
 import { emailApi } from "../api/email.js";
+import { aiApi } from "../api/ai.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
 import { getDocument } from "../utils/invoice.js";
@@ -24,6 +26,8 @@ export default function InvoiceDetail() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailLogs, setEmailLogs] = useState([]);
+  const [datevSuggestion, setDatevSuggestion] = useState(null);
+  const [fieldSuggestions, setFieldSuggestions] = useState([]);
   const document = getDocument(draft);
 
   useEffect(() => {
@@ -44,6 +48,46 @@ export default function InvoiceDetail() {
       .catch((err) => { if (alive) setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]); });
     return () => { alive = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    Promise.all([
+      aiApi.suggestDatev("Invoice", id).catch(() => null),
+      aiApi.suggestInvoiceFields(id).catch(() => [])
+    ]).then(([datev, fields]) => {
+      if (!alive) return;
+      setDatevSuggestion(datev ? { ...datev, status: "Pending" } : null);
+      setFieldSuggestions(Array.isArray(fields) ? fields.map((s) => ({ ...s, status: "Pending" })) : []);
+    });
+    return () => { alive = false; };
+  }, [id]);
+
+  async function acceptDatev() {
+    if (!datevSuggestion) return;
+    try {
+      await aiApi.log({
+        suggestionType: "DatevAccount",
+        targetType: "Invoice",
+        targetId: id,
+        payload: datevSuggestion
+      }, "Accepted");
+    } catch { /* ignore */ }
+    setDatevSuggestion({ ...datevSuggestion, status: "Accepted" });
+  }
+
+  async function rejectDatev() {
+    if (!datevSuggestion) return;
+    try {
+      await aiApi.log({
+        suggestionType: "DatevAccount",
+        targetType: "Invoice",
+        targetId: id,
+        payload: datevSuggestion
+      }, "Rejected");
+    } catch { /* ignore */ }
+    setDatevSuggestion({ ...datevSuggestion, status: "Rejected" });
+  }
 
   async function handleSendEmail(body) {
     await emailApi.sendInvoice(id, body);
@@ -161,6 +205,39 @@ export default function InvoiceDetail() {
                     ))}
                 </div>
               </div>
+              {datevSuggestion && (
+                <AiSuggestionPill
+                  language={language}
+                  label={t(language, "aiSuggestedDatevAccount")}
+                  value={`${datevSuggestion.account}${datevSuggestion.taxKey ? ` · ${datevSuggestion.taxKey}` : ""}`}
+                  confidence={datevSuggestion.confidence}
+                  rationale={datevSuggestion.rationale}
+                  status={datevSuggestion.status}
+                  onAccept={canWrite ? acceptDatev : null}
+                  onReject={canWrite ? rejectDatev : null}
+                  disabled={!canWrite}
+                />
+              )}
+              {fieldSuggestions.length > 0 && (
+                <div className="invoice-lifecycle-panel mb-3">
+                  <div>
+                    <span className="status-pill status-info">{t(language, "aiSuggestedFix")}</span>
+                  </div>
+                  <div className="page-action-group" style={{ flexWrap: "wrap", flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+                    {fieldSuggestions.map((s, i) => (
+                      <AiSuggestionPill
+                        key={`${s.fieldCode}-${i}`}
+                        language={language}
+                        label={s.fieldCode}
+                        value={s.suggestedValue}
+                        confidence={s.confidence}
+                        rationale={t(language, `aiFieldRationale_${s.rationale}`) || s.rationale}
+                        status={s.status}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <pre className="json-preview">{JSON.stringify(document, null, 2)}</pre>
             </div>
           </div>

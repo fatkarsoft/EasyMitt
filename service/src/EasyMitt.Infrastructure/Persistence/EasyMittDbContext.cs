@@ -35,6 +35,8 @@ public sealed class EasyMittDbContext(DbContextOptions<EasyMittDbContext> option
 
     public DbSet<CustomerPortalAccessEntity> CustomerPortalAccesses => Set<CustomerPortalAccessEntity>();
 
+    public DbSet<AiSuggestionEntity> AiSuggestions => Set<AiSuggestionEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(EasyMittDbContext).Assembly);
