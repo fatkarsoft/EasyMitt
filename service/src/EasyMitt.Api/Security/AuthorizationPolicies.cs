@@ -8,6 +8,7 @@ public static class AuthorizationPolicies
     public const string InvoiceRead = "invoice.read";
     public const string InvoiceWrite = "invoice.write";
     public const string InvoiceDispatch = "invoice.dispatch";
+    public const string AdminOnly = "admin.only";
 
     public static void AddEasyMittPolicies(this AuthorizationOptions options)
     {
@@ -19,5 +20,8 @@ public static class AuthorizationPolicies
 
         options.AddPolicy(InvoiceDispatch, policy =>
             policy.RequireRole(EasyMittRoles.Admin, EasyMittRoles.Accountant));
+
+        options.AddPolicy(AdminOnly, policy =>
+            policy.RequireRole(EasyMittRoles.Admin));
     }
 }

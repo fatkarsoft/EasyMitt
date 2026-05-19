@@ -1,6 +1,6 @@
 # EasyMitt Roadmap
 
-Last updated: 2026-05-19 (Advanced AI Accounting)
+Last updated: 2026-05-19 (Production Hardening)
 
 ## Product North Star
 
@@ -125,25 +125,37 @@ EasyMitt is a Germany-focused SaaS platform for e-invoicing and accounting opera
 - `/ai` activity panel (sidebar entry) shows recent suggestions with type+status filters; Admin/Accountant can re-trigger Rejected (creates new Pending + supersedes old).
 - Migration `20260519101616_AiSuggestions` applied.
 
-## Next Major Module
-
 ### Production Hardening
 
-Goal: Move from local-first developer experience to a production-runnable deployment.
+- Secrets pulled from environment / `appsettings.Development.json`; `appsettings.json` keeps non-secret defaults only. `EASYMITT__Section__Key` env override supported. Startup logs a warning when `Authentication:SigningKey` is missing; `/health/ready` flags it via `SecretsHealthCheck`.
+- Archive pluggable behind `IImmutableArchiveStore`: `LocalFileImmutableArchiveStore` (default) + `S3ObjectLockArchiveStore` (AWS SDK, Object Lock COMPLIANCE mode, SHA-256 PUT). `Archive:Backend = Local | S3`. `POST /api/v1/compliance/verify-archive/{invoiceId}` (Admin-only) re-reads bytes and compares SHA-256 against `ArchiveObjectKey`.
+- Schematron pipeline: `XRechnungSchematronRules` (Domain, pure) evaluates a curated KoSIT subset (BR-02..BR-07, BR-16, BR-CO-15, BR-DE-01, BR-DE-15, BR-DE-16, BR-DE-21, BR-DE-23, BR-DE-26). `POST /api/v1/invoices/{id}/validate-schematron` returns failures; Compliance Center surfaces them as `schematron_*` risk codes + new readiness card + table column.
+- Background jobs via Quartz.NET: `EmailRetryJob` (every 15 min, 3 retries with exp backoff for Failed logs in last 24h), `OverdueInvoiceJob` (daily, transitions `Issued`/`Sent` to `Overdue` by BT-9), `DatevExportScheduledJob` (opt-in cron). `GET /api/v1/admin/jobs` + `POST /api/v1/admin/jobs/{name}/run` (Admin-only) list/trigger.
+- Observability: Serilog request logging with `TraceId` / `CompanyId` / `UserId` enrichment (JSON in production, console template in development). OpenTelemetry traces + metrics with ASP.NET Core, HttpClient, EF Core instrumentation, OTLP exporter (no-op when `Telemetry:OtlpEndpoint` is empty). `/health/live` (process up) and `/health/ready` (db + archive + secrets) endpoints alongside the existing `/health`.
+- Production Peppol Access Point: `PartnerGatewayInvoiceDispatch` (HTTP POST to a partner gateway) behind `Dispatch:Backend = NoOp | PartnerGateway`. New `dispatch_logs` table (id, company_id, invoice_id, backend, status, partner_id, response_json, created_at_utc), `IDispatchLogRepository`. `PeppolSubmitRequestDto.InvoiceId` enables persistence; Compliance Center adds a "Dispatched" readiness card + column + audit timeline event.
+- Production email provider: `PostmarkEmailService` (Postmark HTTP API). `Email:Backend = NoOp | Smtp | Postmark`. NoOp/Smtp paths preserved.
+- New `AuthorizationPolicies.AdminOnly` policy for admin job + verify endpoints.
+- Frontend: `/admin/jobs` page (Admin-only sidebar entry) with last-run/next-run/last-status + Run-now; Compliance Center adds Schematron + Dispatched cards/columns; InvoiceDetail adds "Validate Schematron" and "Verify archive" buttons. ~25 new i18n keys for TR / EN / DE.
+- Migration `20260519144130_DispatchLogs` applied.
 
-- Real secret management (no plaintext keys in `appsettings.json`).
-- S3 Object Lock or equivalent immutable archive for invoice retention.
-- Schematron validation pipeline for XRechnung/ZUGFeRD.
-- Production Peppol Access Point (replace the `NoOpInvoiceDispatch` stub).
-- Background job processing (email retries, scheduled DATEV exports, reminder runs).
-- Production-grade email provider (replace SMTP/NoOp fallback).
-- Observability (structured logs, metrics, traces, healthchecks beyond `/health`).
-
-## Upcoming Modules
+## Next Major Module
 
 ### LLM-Backed AI Suggestions
 
-Optional follow-up: replace the heuristic `IExpenseCategorySuggester` and field-fix `IMissingFieldSuggester` with Ollama-vision-backed implementations behind the same interfaces, with the existing heuristic kept as fallback.
+Goal: Replace the heuristic `IExpenseCategorySuggester` and field-fix `IMissingFieldSuggester` with Ollama-vision-backed implementations behind the same interfaces, with the existing heuristic kept as fallback.
+
+- New `OllamaExpenseCategorySuggester` and `OllamaMissingFieldSuggester` Infrastructure adapters wrapping the local scan service or `/api/generate` Ollama endpoint.
+- `Ai:Backend = Heuristic | Ollama` config + DI selector. Heuristic remains the fallback when Ollama is unreachable.
+- Track which adapter produced each `ai_suggestions` row (`payload.source = "heuristic" | "ollama"`).
+- Latency budget + per-suggestion confidence calibration.
+
+## Upcoming Modules
+
+### Multi-Tenant Operations
+
+- Per-company admin settings page (logos, tax IDs, default DATEV mapping).
+- User management page (invite, deactivate, change role).
+- Audit log surface for sensitive admin actions.
 
 ## Backlog
 

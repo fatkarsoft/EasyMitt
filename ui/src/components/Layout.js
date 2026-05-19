@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowUpDown, Banknote, BarChart3, BellRing, Boxes, ChevronDown, FileSignature, FileSpreadsheet, FileText, Gauge, LogOut, Menu, ReceiptText, Settings, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowUpDown, Banknote, BarChart3, BellRing, Boxes, ChevronDown, Cpu, FileSignature, FileSpreadsheet, FileText, Gauge, LogOut, Menu, ReceiptText, Settings, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import iconLogo from "../assets/images/easymitt-icon.svg";
 import { useAuth } from "../state/auth.js";
@@ -19,6 +19,7 @@ const nav = [
   { to: "/reporting", icon: BarChart3, key: "reporting" },
   { to: "/products", icon: Boxes, key: "products" },
   { to: "/inventory", icon: ArrowUpDown, key: "inventory" },
+  { to: "/admin/jobs", icon: Cpu, key: "adminJobs", adminOnly: true },
   { to: "/settings", icon: Settings, key: "settings" }
 ];
 
@@ -96,7 +97,7 @@ export default function Layout({ children }) {
           <div id="sidebar-menu">
             <ul className="metismenu list-unstyled" id="side-menu">
               <li className="menu-title">EasyMitt</li>
-              {nav.map((item) => {
+              {nav.filter((item) => !item.adminOnly || user?.role === "Admin").map((item) => {
                 const Icon = item.icon;
                 return (
                   <li key={item.to}>

@@ -7,4 +7,6 @@ public sealed class PeppolSubmitRequestDto
     public InvoiceDocumentDto Document { get; init; } = new();
 
     public string? RecipientEndpointId { get; init; }
+
+    public Guid? InvoiceId { get; init; }
 }

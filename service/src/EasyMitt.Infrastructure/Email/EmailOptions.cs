@@ -2,6 +2,8 @@ namespace EasyMitt.Infrastructure.Email;
 
 public sealed class EmailOptions
 {
+    public string Backend { get; init; } = "NoOp";
+
     public string SmtpHost { get; init; } = "";
     public int SmtpPort { get; init; } = 587;
     public string SmtpUser { get; init; } = "";
@@ -10,5 +12,13 @@ public sealed class EmailOptions
     public string FromAddress { get; init; } = "noreply@easymitt.de";
     public string FromName { get; init; } = "EasyMitt";
 
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(SmtpHost);
+    public PostmarkEmailOptions Postmark { get; init; } = new();
+
+    public bool IsSmtpConfigured => !string.IsNullOrWhiteSpace(SmtpHost);
+}
+
+public sealed class PostmarkEmailOptions
+{
+    public string ServerToken { get; init; } = "";
+    public string MessageStream { get; init; } = "outbound";
 }

@@ -85,6 +85,16 @@ public static class MessageKeys
     public const string AiInvoiceFieldsSuggested = "ai.invoice_fields_suggested";
     public const string AiDocumentNotFound = "ai.document_not_found";
     public const string SystemHealthy = "system.healthy";
+    public const string SystemReady = "system.ready";
+    public const string SystemNotReady = "system.not_ready";
+    public const string JobsFound = "jobs.found";
+    public const string JobTriggered = "jobs.triggered";
+    public const string JobNotFound = "jobs.not_found";
+    public const string SchematronValid = "compliance.schematron_valid";
+    public const string SchematronInvalid = "compliance.schematron_invalid";
+    public const string ArchiveVerified = "compliance.archive_verified";
+    public const string ArchiveHashMismatch = "compliance.archive_hash_mismatch";
+    public const string ArchiveNotFound = "compliance.archive_not_found";
     public const string ErrorUnexpected = "error.unexpected";
     public const string ErrorBadRequest = "error.bad_request";
     public const string ErrorNotFound = "error.not_found";

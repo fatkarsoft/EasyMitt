@@ -37,6 +37,8 @@ public sealed class EasyMittDbContext(DbContextOptions<EasyMittDbContext> option
 
     public DbSet<AiSuggestionEntity> AiSuggestions => Set<AiSuggestionEntity>();
 
+    public DbSet<DispatchLogEntity> DispatchLogs => Set<DispatchLogEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(EasyMittDbContext).Assembly);

@@ -383,9 +383,11 @@ public static class InvoiceEndpoints
 
     private static async Task<IResult> PeppolSubmitAsync(
         PeppolSubmitRequestDto body,
+        ClaimsPrincipal user,
         IValidator<InvoiceDocumentDto> validator,
         IElectronicInvoiceGenerator generator,
         IInvoiceDispatch dispatch,
+        IDispatchLogRepository dispatchLogRepository,
         IAppLocalizer localizer,
         ApiResponseFactory responseFactory,
         HttpContext httpContext,
@@ -401,6 +403,19 @@ public static class InvoiceEndpoints
         var receipt = await dispatch.SubmitAsync(
             new InvoiceDispatchRequest(body.Document, xml, "application/xml", body.RecipientEndpointId),
             cancellationToken);
+
+        if (body.InvoiceId is Guid invoiceId)
+        {
+            var backendName = dispatch.GetType().Name;
+            await dispatchLogRepository.AddAsync(new DispatchLogEntry(
+                user.CompanyId(),
+                invoiceId,
+                backendName,
+                receipt.Status,
+                receipt.Metadata is not null && receipt.Metadata.TryGetValue("partnerId", out var partnerId) ? partnerId : null,
+                System.Text.Json.JsonSerializer.Serialize(new { receipt.DispatchId, receipt.Status, receipt.Metadata })),
+                cancellationToken);
+        }
 
         return Results.Ok(responseFactory.Success(
             httpContext,

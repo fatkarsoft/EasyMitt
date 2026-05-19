@@ -22,6 +22,10 @@ public sealed class ComplianceReadinessSummaryDto
     public int PaymentReconciled { get; init; }
     public int PaymentUnreconciled { get; init; }
     public int MahnwesenOverdueRisk { get; init; }
+    public int SchematronReady { get; init; }
+    public int SchematronNotReady { get; init; }
+    public int Dispatched { get; init; }
+    public int NotDispatched { get; init; }
 }
 
 public sealed class ComplianceDocumentRiskDto
@@ -38,6 +42,10 @@ public sealed class ComplianceDocumentRiskDto
     public bool IsDatevExported { get; init; }
     public bool IsXRechnungReady { get; init; }
     public bool IsZugferdReady { get; init; }
+    public bool IsSchematronValid { get; init; }
+    public IReadOnlyList<string> SchematronFailureCodes { get; init; } = Array.Empty<string>();
+    public bool IsDispatched { get; init; }
+    public string? DispatchStatus { get; init; }
     public int DaysOverdue { get; init; }
     public int ReminderLevel { get; init; }
 }

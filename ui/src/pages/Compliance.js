@@ -223,6 +223,8 @@ export default function Compliance() {
             <ReadinessCard label="ZUGFeRD" ready={readiness.zugferdReady} notReady={readiness.zugferdNotReady} icon={FileCheck} />
             <ReadinessCard label="GoBD" ready={readiness.gobdArchived} notReady={readiness.gobdNotArchived} icon={ShieldCheck} />
             <ReadinessCard label="DATEV" ready={readiness.datevExported} notReady={readiness.datevNotExported} icon={FileSpreadsheet} />
+            <ReadinessCard label={t(language, "complianceSchematron")} ready={readiness.schematronReady} notReady={readiness.schematronNotReady} icon={ShieldCheck} />
+            <ReadinessCard label={t(language, "complianceDispatched")} ready={readiness.dispatched} notReady={readiness.notDispatched} icon={FileCheck} />
           </div>
         </>
       )}
@@ -300,6 +302,8 @@ export default function Compliance() {
                         <th>GoBD</th>
                         <th>DATEV</th>
                         <th>XRechnung</th>
+                        <th>{t(language, "complianceSchematron")}</th>
+                        <th>{t(language, "complianceDispatched")}</th>
                         <th>{t(language, "complianceRiskLevel")}</th>
                         <th>{t(language, "aiSuggestedFix")}</th>
                         <th className="text-right">{t(language, "actions")}</th>
@@ -338,6 +342,18 @@ export default function Compliance() {
                             {doc.isXRechnungReady
                               ? <CheckCircle2 size={15} className="text-success" />
                               : <AlertCircle size={15} className="text-danger" />}
+                          </td>
+                          <td>
+                            {doc.isSchematronValid
+                              ? <CheckCircle2 size={15} className="text-success" />
+                              : <span title={(doc.schematronFailureCodes || []).join(", ")}>
+                                  <AlertCircle size={15} className="text-danger" />
+                                </span>}
+                          </td>
+                          <td>
+                            {doc.isDispatched
+                              ? <span className="status-pill status-success" title={doc.dispatchStatus || ""}>{doc.dispatchStatus || "ok"}</span>
+                              : <span className="text-muted font-size-12">{doc.dispatchStatus || "—"}</span>}
                           </td>
                           <td>
                             <span className={`status-pill status-${RISK_VARIANT[doc.riskLevel] || "muted"}`}>

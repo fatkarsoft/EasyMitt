@@ -1,6 +1,6 @@
 # EasyMitt Agent Handoff
 
-Last updated: 2026-05-19 (Advanced AI Accounting)
+Last updated: 2026-05-19 (Production Hardening)
 
 ## Current Goal
 
@@ -10,7 +10,45 @@ The immediate development style requested by the user is to complete large modul
 
 ## Latest Completed Work
 
-The latest completed module is `Advanced AI Accounting`:
+The latest completed module is `Production Hardening`:
+
+- Secret hygiene: `appsettings.json` now holds only non-secret defaults. Sensitive values (PostgreSQL connection, `Authentication:SigningKey`, `Email:Smtp*`, AWS / Postmark / Peppol partner tokens) live in `appsettings.Development.json` for local dev or `EASYMITT__Section__Key` environment variables in production. Added `AddEnvironmentVariables(prefix: "EASYMITT__")` in `Program.cs`. Startup warns when `Authentication:SigningKey` is missing; `/health/ready` `SecretsHealthCheck` flags it as Degraded.
+- Pluggable immutable archive (`IImmutableArchiveStore`): existing `LocalFileImmutableArchiveStore` retained; new `S3ObjectLockArchiveStore` writes with Object Lock COMPLIANCE mode + retention days via AWSSDK.S3. Selector via `Archive:Backend = Local | S3`. New `POST /api/v1/compliance/verify-archive/{invoiceId}` (Admin-only) re-reads archive bytes, re-computes SHA-256, and compares against `InvoiceDraftEntity.CanonicalSha256Hex`/`ArchiveObjectKey`.
+- Schematron pipeline: `EasyMitt.Domain.Compliance.XRechnungSchematronRules` (pure functions) evaluates a curated KoSIT subset — `BR-02`, `BR-03`, `BR-05`, `BR-06`, `BR-07`, `BR-16`, `BR-CO-15`, `BR-DE-01`, `BR-DE-15`, `BR-DE-16`, `BR-DE-21`, `BR-DE-23`, `BR-DE-26`. `InvoiceSchematronValidator` adapter in Infrastructure. New `POST /api/v1/invoices/{id}/validate-schematron` endpoint. Compliance dashboard returns per-document `isSchematronValid` + `schematronFailureCodes`; risks now include `schematron_*` codes.
+- Background job runtime via **Quartz.NET** (in-memory store, cron-scheduled): `EmailRetryJob` (every 15 min — retries last 24h Failed `email_delivery_logs` 3× with exp backoff), `OverdueInvoiceJob` (daily 04:00 UTC — transitions Issued/Sent → Overdue by `BT-9` or BT-2 + 14d), `DatevExportScheduledJob` (opt-in cron). `JobRegistry` + `JobRunHistory` track last-run/last-status/last-error. New `GET /api/v1/admin/jobs` and `POST /api/v1/admin/jobs/{name}/run` (Admin-only).
+- Observability stack: **Serilog** request logging with `TraceId`, `CompanyId`, `UserId` enrichment (`UseSerilogRequestLogging`); console template in dev, `RenderedCompactJsonFormatter` in production. **OpenTelemetry** traces + metrics with ASP.NET Core / HttpClient / EF Core instrumentation, OTLP exporter activated only when `Telemetry:OtlpEndpoint` is set (no-op otherwise). Health endpoints: `/health` (legacy), `/health/live` (process up), `/health/ready` (db + archive + secrets). All return the common envelope.
+- Production Peppol AP adapter: `PartnerGatewayInvoiceDispatch` (HTTP POST with `Bearer` API key + `{senderId, recipientId, contentType, payloadBase64}` body) behind `Dispatch:Backend = NoOp | PartnerGateway`. `NoOpInvoiceDispatch` retained. New `dispatch_logs` table (`id`, `company_id`, `invoice_id`, `backend`, `status`, `partner_id`, `response_json`, `created_at_utc`) + `IDispatchLogRepository`. `PeppolSubmitRequestDto.InvoiceId` enables persistence on submit. Compliance Center gets a new "Dispatched" readiness card + table column + "dispatched" audit timeline event.
+- Production email provider adapter: `PostmarkEmailService` (Postmark HTTP API; one-way send + status — no webhook). `Email:Backend = NoOp | Smtp | Postmark` selector. `SmtpEmailService` and `NoOpEmailService` preserved as before.
+- Authorization: new `AuthorizationPolicies.AdminOnly` policy. All admin endpoints (`/api/v1/admin/jobs*`, `/api/v1/compliance/verify-archive/*`) require Admin role.
+- DI overhaul (`EasyMitt.Infrastructure.DependencyInjection`): backend selectors for Email / Archive / Dispatch, `IArchiveVerifier`, `IInvoiceSchematronValidator`, Quartz registration, health checks. Health-check classes registered Scoped (not Singleton) to legally consume `EasyMittDbContext`.
+- New `MessageKeys`: `JobsFound`, `JobTriggered`, `JobNotFound`, `SchematronValid`, `SchematronInvalid`, `ArchiveVerified`, `ArchiveHashMismatch`, `ArchiveNotFound`, `SystemReady`, `SystemNotReady`. Localized in EN / TR / DE.
+- Migration `20260519144130_DispatchLogs` applied.
+- Frontend: new `/admin/jobs` page (Admin-only sidebar entry with `Cpu` icon) listing all jobs with description, cron schedule, enabled flag, last-run timestamp, next-fire time, last status badge, last error, Run-now button. Compliance Center adds Schematron + Dispatched readiness cards and table columns. InvoiceDetail adds "Validate Schematron" and "Verify archive" buttons; results render inline with hashes/rule failures. New `ui/src/api/admin.js` (`adminApi`, `invoiceSchematronApi`, `complianceVerifyApi`). ~25 new i18n keys for TR / EN / DE.
+
+Latest validation known to pass:
+
+```powershell
+dotnet build .\service\EasyMitt.slnx
+# Build succeeded. 0 Warning(s). 0 Error(s).
+cd ui
+npm run lint
+# clean
+npm run build
+# Built in ~8.7s.
+```
+
+Live end-to-end smoke test (admin@easymitt.local / Admin123!):
+
+- `GET /health/ready` → 200, all 3 checks (database / archive / secrets) Healthy.
+- `GET /health/live` → 200, process up.
+- `GET /api/v1/admin/jobs` → envelope, 3 jobs returned (`email-retry`, `overdue-invoice`, `datev-export-scheduled`) with cron + next-run times.
+- `POST /api/v1/admin/jobs/overdue-invoice/run` → envelope, `lastRunAtUtc` populated, `lastStatus=Success`.
+- `POST /api/v1/invoices/{id}/validate-schematron` against an Issued invoice → envelope, `isValid:true` with informational `BR-DE-26` only.
+- `POST /api/v1/compliance/verify-archive/{id}` against an archived invoice → envelope, `hashMatches:true`, `expected` and `actual` SHA-256 match.
+- `EASYMITT__Authentication__SigningKey=test123-override-env-prefix` env override → API starts, `/health/ready` reports secrets Healthy, login succeeds.
+- API on 5095 + UI on 5173 verified up.
+
+The previous completed module is `Advanced AI Accounting`:
 
 - Migration `20260519101616_AiSuggestions` applied. New table `ai_suggestions` with id, company_id, suggestion_type (`ExpenseCategory` | `DatevAccount` | `PaymentMatch` | `InvoiceField`), target_type, target_id, payload_json, status (`Pending` | `Accepted` | `Rejected` | `Superseded`), created_at_utc, decided_at_utc, decided_by_user_email, superseded_by_id.
 - Domain (pure functions, no DB — unit-testable): `EasyMitt.Domain.Accounting.ExpenseCategoryHeuristics`, `PaymentMatchScorer`, `DatevAccountHeuristics`, `InvoiceFieldHeuristics`.
@@ -345,6 +383,19 @@ Expected high-level dirty state includes:
 - Reusable `<AiSuggestionPill />` component with TR/EN/DE labels.
 - Migration `20260519101616_AiSuggestions` applied.
 
+### Production Hardening
+
+- Secrets out of `appsettings.json`; `appsettings.Development.json` for local dev or `EASYMITT__Section__Key` env override; startup warning + `/health/ready` flag when `Authentication:SigningKey` missing.
+- Pluggable archive (`Archive:Backend = Local | S3`): `LocalFileImmutableArchiveStore` + `S3ObjectLockArchiveStore` (Object Lock COMPLIANCE). `POST /api/v1/compliance/verify-archive/{invoiceId}` (Admin-only) re-reads and SHA-256 matches.
+- Schematron rule engine (Domain pure): BR-02, BR-03, BR-05, BR-06, BR-07, BR-16, BR-CO-15, BR-DE-01, BR-DE-15, BR-DE-16, BR-DE-21, BR-DE-23, BR-DE-26. `POST /api/v1/invoices/{id}/validate-schematron`. Compliance dashboard exposes `isSchematronValid` + `schematronFailureCodes`; risks include `schematron_*` codes.
+- Quartz.NET background jobs: `EmailRetryJob` (15-min cron), `OverdueInvoiceJob` (daily), `DatevExportScheduledJob` (opt-in). `GET /api/v1/admin/jobs` + `POST /api/v1/admin/jobs/{name}/run` (Admin-only). `JobRunHistory` tracks last-run + last-status + last-error.
+- Serilog request logging (JSON in production, console in dev) with `TraceId` / `CompanyId` / `UserId` enrichment. OpenTelemetry (ASP.NET + HttpClient + EF Core) with OTLP exporter activated via `Telemetry:OtlpEndpoint`. `/health/live` + `/health/ready` (db + archive + secrets).
+- Production Peppol AP adapter `PartnerGatewayInvoiceDispatch` behind `Dispatch:Backend`. New `dispatch_logs` table + `IDispatchLogRepository`. Compliance dashboard gains "Dispatched" readiness card + table column + audit timeline event.
+- Postmark transactional email adapter (`Email:Backend = NoOp | Smtp | Postmark`).
+- New `AuthorizationPolicies.AdminOnly`. Admin endpoints + verify-archive enforce Admin role server-side.
+- `/admin/jobs` UI page (Admin-only sidebar entry); Compliance Center adds Schematron + Dispatched readiness cards + columns; InvoiceDetail adds "Validate Schematron" + "Verify archive" buttons.
+- Migration `20260519144130_DispatchLogs` applied.
+
 ## Local Services
 
 Default ports:
@@ -380,22 +431,20 @@ Demo users:
 
 ## Suggested Next Work
 
-Advanced AI Accounting is now complete. The next recommended large module is `Production Hardening`, because:
+Production Hardening is now complete. The next recommended large module is `LLM-Backed AI Suggestions`, because:
 
-- The local-first developer experience is fully functional end-to-end; the remaining gaps that block a real deployment are infrastructure and operational, not feature surface.
-- Sensitive items (HMAC signing key, SMTP credentials, DB password) currently live in `appsettings.json`; archive is local disk; Peppol dispatch is a no-op.
+- The deterministic heuristic suggesters in `EasyMitt.Domain.Accounting` already cover the easy wins; the remaining lift on category / field correction quality is better handled by a vision-or-text LLM.
+- The local Ollama path (`scan-service`) is already wired in for OCR — extending it to suggestion endpoints reuses an existing local-first dependency rather than adding a new cloud bill.
+- Interfaces (`IExpenseCategorySuggester`, `IMissingFieldSuggester`, `IDatevAccountSuggester`) are already in place behind DI, so swapping implementations is contained.
 
-Recommended scope for Production Hardening:
+Recommended scope for `LLM-Backed AI Suggestions`:
 
-- Real secret management — pull `Authentication:SigningKey`, `Email:Smtp*`, and `ConnectionStrings:PostgreSQL` from a secret store (Azure Key Vault / AWS Secrets Manager / dotnet user-secrets, depending on host).
-- Immutable archive — replace `LocalFileImmutableArchiveStore` with S3 Object Lock (or Azure Blob immutable policies) so GoBD archive bytes can't be altered after writing.
-- Schematron validation pipeline — run KoSIT/CIUS Schematron rules before issuing XRechnung/ZUGFeRD; surface failures as compliance errors.
-- Production Peppol Access Point — replace `NoOpInvoiceDispatch` with a real AP integration (likely via partner gateway).
-- Background job processing — move email retries, scheduled DATEV exports, and reminder runs off the request path.
-- Observability — structured logs (Serilog), OpenTelemetry traces/metrics, deeper healthchecks (DB, archive, SMTP).
-- Production email provider — replace `SmtpEmailService` with a transactional provider (Postmark / SendGrid / Mailgun) and tracked delivery/bounce webhooks.
+- New Infrastructure adapters: `OllamaExpenseCategorySuggester`, `OllamaMissingFieldSuggester` (and optionally `OllamaInvoiceLineExtractor` for receipt scans) calling local Ollama (`/api/generate` JSON mode).
+- `Ai:Backend = Heuristic | Ollama` config + DI selector; heuristic remains the fallback when Ollama is unreachable.
+- Track `payload.source = "heuristic" | "ollama"` on each `ai_suggestions` row so the UI/audit can show provenance.
+- Latency budgets (timeout → fall back to heuristic) and confidence calibration.
 
-Alternative next module: `LLM-Backed AI Suggestions` (replace heuristic suggesters with Ollama-vision-backed implementations behind the existing interfaces; the heuristic stays as fallback).
+Alternative next module: `Multi-Tenant Operations` — admin company settings page, user management page, invite/deactivate flows, and a per-tenant audit log surface.
 
 ## How To Continue In Another Agent
 

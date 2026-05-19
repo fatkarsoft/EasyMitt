@@ -1,14 +1,19 @@
 using System.Globalization;
 using System.Text.Json;
+using EasyMitt.Application.Abstractions.Compliance;
 using EasyMitt.Application.Abstractions.Persistence;
 using EasyMitt.Application.Dtos.Compliance;
+using EasyMitt.Application.Dtos.En16931;
 using EasyMitt.Domain.Billing;
 using EasyMitt.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace EasyMitt.Infrastructure.Persistence.Repositories;
 
-public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepository
+public sealed class ComplianceRepository(
+    EasyMittDbContext db,
+    IInvoiceSchematronValidator schematronValidator,
+    IDispatchLogRepository dispatchLogRepository) : IComplianceRepository
 {
     public async Task<ComplianceDashboardDto> GetDashboardAsync(
         Guid companyId,
@@ -47,6 +52,8 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
             .Select(x => new { x.PeriodFrom, x.PeriodTo })
             .ToListAsync(cancellationToken);
 
+        var dispatchByInvoice = await dispatchLogRepository.GetLatestByInvoicesAsync(companyId, invoiceIds, cancellationToken);
+
         var documents = new List<ComplianceDocumentRiskDto>();
 
         foreach (var invoice in invoices)
@@ -57,7 +64,7 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
             if (to.HasValue && issueDate > to.Value) continue;
             if (!string.IsNullOrEmpty(status) && !string.Equals(invoice.Status, status, StringComparison.OrdinalIgnoreCase)) continue;
 
-            var doc = BuildDocumentRisk(invoice, today, issueDate, paidByInvoice, remindersByInvoice, datevLogs.Select(x => (x.PeriodFrom!.Value, x.PeriodTo!.Value)).ToArray());
+            var doc = BuildDocumentRisk(invoice, today, issueDate, paidByInvoice, remindersByInvoice, datevLogs.Select(x => (x.PeriodFrom!.Value, x.PeriodTo!.Value)).ToArray(), dispatchByInvoice);
 
             if (!string.IsNullOrEmpty(riskLevel) && !string.Equals(doc.RiskLevel, riskLevel, StringComparison.OrdinalIgnoreCase)) continue;
 
@@ -79,6 +86,10 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
             PaymentReconciled = nonDraftDocs.Count(x => x.Status is InvoiceLifecycleStatus.Paid or InvoiceLifecycleStatus.PartiallyPaid),
             PaymentUnreconciled = nonDraftDocs.Count(x => x.Status is not InvoiceLifecycleStatus.Paid and not InvoiceLifecycleStatus.PartiallyPaid and not InvoiceLifecycleStatus.Cancelled),
             MahnwesenOverdueRisk = nonDraftDocs.Count(x => x.DaysOverdue > 0 && x.ReminderLevel == 0),
+            SchematronReady = nonDraftDocs.Count(x => x.IsSchematronValid),
+            SchematronNotReady = nonDraftDocs.Count(x => !x.IsSchematronValid),
+            Dispatched = nonDraftDocs.Count(x => x.IsDispatched),
+            NotDispatched = nonDraftDocs.Count(x => !x.IsDispatched),
         };
 
         var sorted = documents
@@ -111,6 +122,8 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
             .Where(x => x.CompanyId == companyId && x.InvoiceDraftId == invoiceDraftId)
             .OrderBy(x => x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
+
+        var dispatches = await dispatchLogRepository.GetByInvoiceAsync(companyId, invoiceDraftId, cancellationToken);
 
         var events = new List<ComplianceAuditEventDto>();
 
@@ -162,6 +175,16 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
             });
         }
 
+        foreach (var dispatch in dispatches)
+        {
+            events.Add(new ComplianceAuditEventDto
+            {
+                EventType = "dispatched",
+                Description = $"dispatch_{dispatch.Backend}_{dispatch.Status}",
+                OccurredAtUtc = dispatch.CreatedAtUtc,
+            });
+        }
+
         if (invoice.PaidAtUtc.HasValue)
         {
             events.Add(new ComplianceAuditEventDto
@@ -191,13 +214,14 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
         };
     }
 
-    private static ComplianceDocumentRiskDto BuildDocumentRisk(
+    private ComplianceDocumentRiskDto BuildDocumentRisk(
         InvoiceDraftEntity invoice,
         DateOnly today,
         DateOnly issueDate,
         Dictionary<Guid, decimal> paidByInvoice,
         Dictionary<Guid, ReminderSummary> remindersByInvoice,
-        (DateOnly From, DateOnly To)[] datevPeriods)
+        (DateOnly From, DateOnly To)[] datevPeriods,
+        IReadOnlyDictionary<Guid, DispatchLogDto> dispatchByInvoice)
     {
         var invoiceNumber = ReadString(invoice.PayloadJson, "core", "BT-1");
         var currencyCode = ReadString(invoice.PayloadJson, "core", "BT-5");
@@ -223,6 +247,23 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
         var paid = paidByInvoice.GetValueOrDefault(invoice.Id);
         var openAmount = Math.Max(0, total - paid);
 
+        // Schematron
+        bool isSchematronValid = true;
+        var schematronCodes = Array.Empty<string>();
+        try
+        {
+            var doc = JsonSerializer.Deserialize<InvoiceDocumentDto>(invoice.PayloadJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (doc is not null)
+            {
+                var schematron = schematronValidator.Validate(doc);
+                isSchematronValid = schematron.IsValid;
+                schematronCodes = schematron.Failures.Select(f => f.RuleId).ToArray();
+            }
+        }
+        catch (JsonException) { isSchematronValid = false; }
+
+        var hasDispatch = dispatchByInvoice.TryGetValue(invoice.Id, out var dispatch);
+
         var risks = new List<string>();
 
         if (string.IsNullOrWhiteSpace(invoiceNumber)) risks.Add("missing_invoice_number");
@@ -231,6 +272,9 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
         if (string.IsNullOrWhiteSpace(sellerVatId)) risks.Add("missing_seller_vat");
         if (string.IsNullOrWhiteSpace(sellerIban)) risks.Add("missing_seller_iban");
         if (string.IsNullOrWhiteSpace(buyerName)) risks.Add("missing_buyer_name");
+
+        foreach (var code in schematronCodes)
+            risks.Add($"schematron_{code}");
 
         if (invoice.Status != InvoiceLifecycleStatus.Draft && invoice.Status != InvoiceLifecycleStatus.Cancelled)
         {
@@ -241,7 +285,7 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
         if (daysOverdue > 0 && openAmount > 0 && reminderLevel == 0)
             risks.Add("overdue_no_reminder");
 
-        var riskLevel = DetermineRiskLevel(risks, invoice.Status);
+        var riskLevel = DetermineRiskLevel(risks, invoice.Status, isSchematronValid);
 
         return new ComplianceDocumentRiskDto
         {
@@ -257,14 +301,19 @@ public sealed class ComplianceRepository(EasyMittDbContext db) : IComplianceRepo
             IsDatevExported = isDatevExported,
             IsXRechnungReady = isXRechnungReady,
             IsZugferdReady = isXRechnungReady,
+            IsSchematronValid = isSchematronValid,
+            SchematronFailureCodes = schematronCodes,
+            IsDispatched = hasDispatch && dispatch is not null && !dispatch.Status.StartsWith("failed", StringComparison.OrdinalIgnoreCase) && !dispatch.Status.StartsWith("errored", StringComparison.OrdinalIgnoreCase) && !dispatch.Status.StartsWith("skipped", StringComparison.OrdinalIgnoreCase),
+            DispatchStatus = dispatch?.Status,
             DaysOverdue = daysOverdue,
             ReminderLevel = reminderLevel,
         };
     }
 
-    private static string DetermineRiskLevel(List<string> risks, string status)
+    private static string DetermineRiskLevel(List<string> risks, string status, bool isSchematronValid)
     {
         if (status == InvoiceLifecycleStatus.Cancelled) return "none";
+        if (!isSchematronValid) return "high";
         if (risks.Contains("missing_invoice_number") || risks.Contains("missing_issue_date") || risks.Contains("overdue_no_reminder"))
             return "high";
         if (risks.Contains("not_gobd_archived") || risks.Contains("not_datev_exported") || risks.Count >= 3)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Ban, BellRing, CheckCircle2, Clock, CreditCard, Mail, Send, Stamp } from "lucide-react";
+import { ArrowLeft, Ban, BellRing, CheckCircle2, Clock, CreditCard, FileCheck, Mail, Send, ShieldCheck, Stamp } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import PageTitle from "../components/PageTitle.js";
 import ConfirmDialog from "../components/ConfirmDialog.js";
@@ -7,6 +7,7 @@ import SendEmailModal from "../components/SendEmailModal.js";
 import AiSuggestionPill from "../components/AiSuggestionPill.js";
 import { ApiError } from "../api/client.js";
 import { invoicesApi } from "../api/invoices.js";
+import { invoiceSchematronApi, complianceVerifyApi } from "../api/admin.js";
 import { paymentsApi } from "../api/payments.js";
 import { dunningApi } from "../api/dunning.js";
 import { emailApi } from "../api/email.js";
@@ -28,6 +29,8 @@ export default function InvoiceDetail() {
   const [emailLogs, setEmailLogs] = useState([]);
   const [datevSuggestion, setDatevSuggestion] = useState(null);
   const [fieldSuggestions, setFieldSuggestions] = useState([]);
+  const [schematron, setSchematron] = useState(null);
+  const [archiveCheck, setArchiveCheck] = useState(null);
   const document = getDocument(draft);
 
   useEffect(() => {
@@ -89,6 +92,34 @@ export default function InvoiceDetail() {
     setDatevSuggestion({ ...datevSuggestion, status: "Rejected" });
   }
 
+  async function runSchematron() {
+    setLoading("schematron");
+    setMessage(null);
+    try {
+      const data = await invoiceSchematronApi.validate(id);
+      setSchematron(data);
+      setMessage([data.isValid ? "success" : "warning", t(language, data.isValid ? "schematronValid" : "schematronInvalid")]);
+    } catch (err) {
+      setMessage(["danger", err instanceof ApiError ? err.message : "Schematron failed"]);
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function runVerifyArchive() {
+    setLoading("verify");
+    setMessage(null);
+    try {
+      const data = await complianceVerifyApi.verifyArchive(id);
+      setArchiveCheck(data);
+      setMessage([data.hashMatches ? "success" : "danger", t(language, data.hashMatches ? "archiveVerified" : "archiveHashMismatch")]);
+    } catch (err) {
+      setMessage(["danger", err instanceof ApiError ? err.message : "Verify failed"]);
+    } finally {
+      setLoading("");
+    }
+  }
+
   async function handleSendEmail(body) {
     await emailApi.sendInvoice(id, body);
     setMessage(["success", t(language, "emailSent")]);
@@ -144,7 +175,28 @@ export default function InvoiceDetail() {
                 <button className="btn btn-secondary" disabled={!!loading} onClick={() => run("pdf", invoicesApi.exportZugferd)}>{loading === "pdf" ? `${t(language, "loading")}...` : t(language, "exportPdf")}</button>
                 <button className="btn btn-primary" disabled={!canWrite || !!loading} onClick={() => run("submit", invoicesApi.submitPeppol)}>{loading === "submit" ? `${t(language, "loading")}...` : t(language, "submit")}</button>
                 {canWrite && <button className="btn btn-outline-primary" disabled={!!loading} onClick={() => setEmailOpen(true)}><Mail size={16} /> {t(language, "sendEmail")}</button>}
+                <button className="btn btn-outline-secondary" disabled={!!loading} onClick={runSchematron}><ShieldCheck size={16} /> {loading === "schematron" ? "…" : t(language, "validateSchematron")}</button>
+                <button className="btn btn-outline-secondary" disabled={!!loading} onClick={runVerifyArchive}><FileCheck size={16} /> {loading === "verify" ? "…" : t(language, "verifyArchive")}</button>
               </div>
+              {schematron && (
+                <div className={`alert alert-${schematron.isValid ? "success" : "warning"} py-2 mb-3`}>
+                  <strong>{t(language, "validateSchematron")}</strong>
+                  {schematron.failures?.length > 0 && (
+                    <ul className="mb-0 mt-1 font-size-12">
+                      {schematron.failures.map((f, i) => (
+                        <li key={i}><code>{f.ruleId}</code> · <em>{f.severity}</em> · {f.description}{f.field ? ` (${f.field})` : ""}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {archiveCheck && (
+                <div className={`alert alert-${archiveCheck.hashMatches ? "success" : "danger"} py-2 mb-3 font-size-12`}>
+                  <strong>{t(language, "verifyArchive")}</strong> · {t(language, "archiveBackend")}: {archiveCheck.backend}
+                  <div><span className="text-muted">{t(language, "expectedHash")}:</span> <code>{archiveCheck.expectedSha256Hex || "—"}</code></div>
+                  <div><span className="text-muted">{t(language, "actualHash")}:</span> <code>{archiveCheck.actualSha256Hex || "—"}</code></div>
+                </div>
+              )}
               <div className="invoice-lifecycle-panel mb-4">
                 <div>
                   <span className={`status-pill ${statusClass(draft.status)}`}>{statusLabel(language, draft.status)}</span>
