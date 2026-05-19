@@ -70,5 +70,6 @@ app.MapDatevEndpoints();
 app.MapDatevSettingsEndpoints();
 app.MapComplianceEndpoints();
 app.MapEmailEndpoints();
+app.MapPortalEndpoints();
 
 app.Run();

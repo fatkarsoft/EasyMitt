@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { ArrowLeft, Building2, ClipboardCopy, Globe2, KeyRound, ShieldOff } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import PageTitle from "../components/PageTitle.js";
 import FormField from "../components/FormField.js";
 import { customersApi } from "../api/customers.js";
+import { portalAccessApi } from "../api/portal.js";
 import { ApiError } from "../api/client.js";
 import { useAuth } from "../state/auth.js";
 import { t } from "../i18n.js";
@@ -119,9 +120,163 @@ export default function CustomerForm() {
               )}
             </div>
           </form>
+          {isEdit && <PortalAccessPanel customerId={id} language={language} canWrite={canWrite} />}
         </div>
       </div>
     </>
+  );
+}
+
+function PortalAccessPanel({ customerId, language, canWrite }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState(null);
+  const [issued, setIssued] = useState(null);
+  const [label, setLabel] = useState("");
+  const [validityDays, setValidityDays] = useState(180);
+  const [working, setWorking] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    portalAccessApi.list(customerId)
+      .then((data) => setItems(Array.isArray(data) ? data : []))
+      .catch((err) => setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    let alive = true;
+    portalAccessApi.list(customerId)
+      .then((data) => { if (alive) setItems(Array.isArray(data) ? data : []); })
+      .catch((err) => { if (alive) setMessage(["danger", err instanceof ApiError ? err.message : "Load failed"]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [customerId]);
+
+  async function issue(event) {
+    event.preventDefault();
+    setWorking(true);
+    setMessage(null);
+    try {
+      const data = await portalAccessApi.issue(customerId, {
+        label: label.trim() || null,
+        validityDays: Number(validityDays) || null
+      });
+      setIssued(data);
+      setMessage(["success", t(language, "portalTokenIssued")]);
+      setLabel("");
+      load();
+    } catch (err) {
+      setMessage(["danger", err instanceof ApiError ? err.message : "Request failed"]);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function revoke(tokenId) {
+    if (!confirm(t(language, "portalRevokeConfirm"))) return;
+    setMessage(null);
+    try {
+      await portalAccessApi.revoke(tokenId);
+      setMessage(["success", t(language, "portalTokenRevoked")]);
+      load();
+    } catch (err) {
+      setMessage(["danger", err instanceof ApiError ? err.message : "Request failed"]);
+    }
+  }
+
+  function copy(text) {
+    try { navigator.clipboard.writeText(text); } catch { /* noop */ }
+  }
+
+  return (
+    <div className="card ops-card mt-3">
+      <div className="card-body">
+        <div className="form-panel-header">
+          <span className="form-panel-icon"><Globe2 size={18} /></span>
+          <div>
+            <h4 className="card-title mb-1">{t(language, "portalAccessTitle")}</h4>
+            <p className="text-muted mb-0">{t(language, "portalAccessHint")}</p>
+          </div>
+        </div>
+        {message && <div className={`alert alert-${message[0]}`}>{message[1]}</div>}
+        {issued && (
+          <div className="alert alert-info">
+            <strong>{t(language, "portalAccessOnceWarning")}</strong>
+            <div className="mt-2 d-flex align-items-center" style={{ gap: 8, flexWrap: "wrap" }}>
+              <code style={{ wordBreak: "break-all" }}>{issued.token}</code>
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => copy(issued.token)}><ClipboardCopy size={14} /> {t(language, "portalCopyToken")}</button>
+            </div>
+            {issued.portalUrl && (
+              <div className="mt-2 d-flex align-items-center" style={{ gap: 8, flexWrap: "wrap" }}>
+                <span className="text-muted small">{t(language, "portalShareLink")}:</span>
+                <code style={{ wordBreak: "break-all" }}>{issued.portalUrl}</code>
+                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => copy(issued.portalUrl)}><ClipboardCopy size={14} /> {t(language, "portalCopyLink")}</button>
+              </div>
+            )}
+          </div>
+        )}
+        {canWrite && (
+          <form className="row g-2 align-items-end mb-3" onSubmit={issue}>
+            <div className="col-md-6">
+              <FormField label={t(language, "portalAccessLabel")}>
+                <input className="form-control" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t(language, "portalAccessLabelPlaceholder")} />
+              </FormField>
+            </div>
+            <div className="col-md-3">
+              <FormField label={t(language, "portalValidityDays")}>
+                <input className="form-control" type="number" min="0" value={validityDays} onChange={(e) => setValidityDays(e.target.value)} />
+              </FormField>
+            </div>
+            <div className="col-md-3">
+              <button className="btn btn-primary w-100" type="submit" disabled={working}>
+                <KeyRound size={16} /> {t(language, "portalIssueAccess")}
+              </button>
+            </div>
+          </form>
+        )}
+        {loading ? <div className="text-muted">{t(language, "loading")}...</div> : items.length === 0 ? (
+          <div className="text-muted">{t(language, "portalNoTokens")}</div>
+        ) : (
+          <div className="table-responsive">
+            <table className="table table-sm align-middle mb-0">
+              <thead><tr>
+                <th>{t(language, "portalAccessLabel")}</th>
+                <th>{t(language, "portalAccessPrefix")}</th>
+                <th>{t(language, "portalStatus")}</th>
+                <th>{t(language, "portalCreatedAt")}</th>
+                <th>{t(language, "portalExpiresAt")}</th>
+                <th>{t(language, "portalLastUsed")}</th>
+                <th className="text-end">{t(language, "actions")}</th>
+              </tr></thead>
+              <tbody>
+                {items.map((token) => (
+                  <tr key={token.id}>
+                    <td>{token.label}</td>
+                    <td><code>{token.tokenPrefix}…</code></td>
+                    <td>
+                      <span className={`status-pill ${token.status === "Active" ? "status-issued" : "status-cancelled"}`}>
+                        {token.status === "Active" ? t(language, "portalStatusActive") : t(language, "portalStatusRevoked")}
+                      </span>
+                    </td>
+                    <td>{new Date(token.createdAtUtc).toLocaleString()}</td>
+                    <td>{token.expiresAtUtc ? new Date(token.expiresAtUtc).toLocaleDateString() : "—"}</td>
+                    <td>{token.lastUsedAtUtc ? new Date(token.lastUsedAtUtc).toLocaleString() : "—"}</td>
+                    <td className="text-end">
+                      {canWrite && token.status === "Active" && (
+                        <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => revoke(token.id)}>
+                          <ShieldOff size={14} /> {t(language, "portalRevoke")}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

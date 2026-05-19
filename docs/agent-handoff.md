@@ -1,6 +1,6 @@
 # EasyMitt Agent Handoff
 
-Last updated: 2026-05-16 (Email Delivery)
+Last updated: 2026-05-19 (Customer Portal)
 
 ## Current Goal
 
@@ -10,7 +10,67 @@ The immediate development style requested by the user is to complete large modul
 
 ## Latest Completed Work
 
-The latest completed module is `Email Delivery`:
+The latest completed module is `Customer Portal`:
+
+- Backend entity: `CustomerPortalAccessEntity` → `customer_portal_access` table with token_hash (SHA-256, unique), token_prefix (first 8 chars for display), status (Active/Revoked), expires_at_utc, last_used_at_utc, created_by_user_email.
+- Backend: `ICustomerPortalAccessRepository` / `CustomerPortalAccessRepository` (Infrastructure).
+- Backend: `IPortalTokenGenerator` / `PortalTokenGenerator` (Infrastructure) — cryptographic 32-byte tokens, URL-safe base64, SHA-256 hashing.
+- Backend: `PortalEndpoints` exposes two surfaces:
+  - Admin (JWT, InvoiceWrite for mutation): `GET /api/v1/customers/{id}/portal-access`, `POST /api/v1/customers/{id}/portal-access`, `POST /api/v1/customers/portal-access/{tokenId}/revoke`.
+  - Public portal (token bearer via `X-Portal-Token` header or `?token=` query, `AllowAnonymous`): `GET /api/v1/portal/me`, `GET /api/v1/portal/invoices`, `GET /api/v1/portal/invoices/{id}`, `GET /api/v1/portal/invoices/{id}/zugferd.pdf`, `GET /api/v1/portal/invoices/{id}/xrechnung.xml`, `GET /api/v1/portal/quotes`, `GET /api/v1/portal/quotes/{id}`, `POST /api/v1/portal/quotes/{id}/accept`, `POST /api/v1/portal/quotes/{id}/decline`.
+- Backend: invoice listing scoped to caller's customer/company; hides Draft and Cancelled invoices and Draft quotes; computes per-invoice amountPaid / amountOpen / isOverdue against PaymentAllocations and BT-9 due date.
+- Backend: token issuance returns plaintext token + sharable portal URL only once. Revocation is soft (status flip). `LastUsedAtUtc` is touched on every successful portal call. Expired tokens are filtered server-side.
+- Backend: `MessageKeys` for portal added with EN / TR / DE localizations (PortalTokenIssued, PortalTokenRevoked, PortalInvalidToken, PortalSessionFound, PortalInvoicesFound, PortalInvoiceFound, PortalQuotesFound, PortalQuoteFound, PortalQuoteAccepted, PortalQuoteDeclined, PortalQuoteNotResponsive, PortalInvoiceNotFound, PortalQuoteNotFound, PortalTokensFound, PortalTokenNotFound).
+- Migration: `20260516184328_CustomerPortalAccess` applied.
+- Frontend: `ui/src/api/portal.js` — both portal session API (X-Portal-Token header, sessionStorage) and admin portalAccessApi (JWT bearer) in one module.
+- Frontend: `ui/src/components/PortalLayout.js` — separate dark-sidebar / white-topbar shell with only portal nav (overview / invoices / quotes), portal language picker, "exit" button that clears token.
+- Frontend: `ui/src/pages/PortalShell.js` — handles language, session lookup, and `/portal/*` sub-routing outside the staff `Layout`.
+- Frontend: `ui/src/pages/PortalEntry.js` (paste-token landing, auto-submits if `?token=` is present).
+- Frontend pages: PortalDashboard (KPI cards + recent invoices/quotes), PortalInvoices (table with PDF download), PortalInvoiceDetail (lines + matched payments + ZUGFeRD PDF and XRechnung XML downloads), PortalQuotes (table), PortalQuoteDetail (lines + accept/decline buttons).
+- Frontend admin: `CustomerForm.js` gains a `PortalAccessPanel` (issue/revoke tokens, copy plaintext token + portal URL once, list active tokens with prefix + last-used timestamp).
+- Routes: `/portal/*` mounted in `main.js` before the staff auth-gated routes so portal access does not require a staff session.
+- i18n: ~80 new keys added to `ui/src/i18n.js` for TR / EN / DE (portal layout, dashboard, invoices, quotes, access management).
+
+Latest validation known to pass:
+
+```powershell
+dotnet build .\service\EasyMitt.slnx
+# Build succeeded. 0 Warning(s). 0 Error(s).
+cd ui
+npm run lint
+# clean
+npm run build
+# Built in ~3.2s.
+```
+
+Live end-to-end smoke test (admin@easymitt.local / Admin123!): issued portal token, called `/api/v1/portal/me` (200, returns customer + company), called `/api/v1/portal/invoices` (200, scoped to customer), confirmed bad token → 401, confirmed revoked token → 401.
+
+The previous completed module is `Reporting Dashboard`:
+
+- Backend: `IReportingRepository` / `ReportingRepository` (Infrastructure) aggregating from `InvoiceDrafts`, `PaymentAllocations`, `Expenses`, `DatevExportLogs`.
+- Backend: `ReportingDtos` (overview, monthly revenue series, VAT summary, DATEV coverage, aging buckets, top customers, expense summary).
+- Backend: `ReportingEndpoints` exposes `GET /api/v1/reporting/overview?from=&to=` (InvoiceRead policy: Admin / Accountant / Auditor).
+- Backend: `MessageKeys.ReportingOverviewFound` localized in EN / TR / DE.
+- Backend UTC-safety: `ReportingRepository.cs` wraps `DateOnly → DateTime` with `DateTime.SpecifyKind(..., DateTimeKind.Utc)` because Npgsql refuses `Unspecified` kind for `timestamp with time zone`.
+- Frontend: `ui/src/api/reporting.js` plus `ui/src/pages/Reporting.js` page with KPI cards, monthly revenue chart, VAT split, DATEV coverage gauge, aging buckets table, top customers list, expense-by-category list.
+- Frontend UTC-safety: date filters use a local `toLocalIso()` helper instead of `toISOString().slice(0,10)` (which previously shifted Jan 1 → Dec 31 in UTC+3).
+- Navigation entry and `/reporting` route added in `Layout.js` / `main.js`.
+- ~tr/en/de i18n keys added for KPI labels, aging buckets, chart titles, filters.
+- No new DB migration — reads from existing tables.
+
+Latest validation known to pass:
+
+```powershell
+dotnet build .\service\EasyMitt.slnx
+# Build succeeded. 0 Warning(s). 0 Error(s).
+cd ui
+npm run lint
+# No errors.
+npm run build
+# Built successfully.
+```
+
+The previous completed module is `Email Delivery`:
 
 - Backend: `IEmailService` interface with `EmailMessage` and `EmailSendResult` records in Application layer.
 - Backend: `SmtpEmailService` (sends via `System.Net.Mail.SmtpClient`) and `NoOpEmailService` (logs warning, returns success) in Infrastructure.
@@ -197,6 +257,31 @@ Expected high-level dirty state includes:
 - All roles can view (Auditor read-only by backend authorization).
 - No new DB migration. Reads from existing tables.
 
+### Email Delivery
+
+- Send invoice/quote/dunning emails via SMTP or NoOp fallback.
+- `email_delivery_logs` table tracking status, recipient, subject, attachment, sender.
+- Reusable `SendEmailModal` integrated into InvoiceDetail, QuoteDetail, Dunning.
+- Migration `20260515233643_EmailDeliveryLogs` applied.
+
+### Reporting Dashboard
+
+- `/api/v1/reporting/overview` endpoint with date range filters.
+- Revenue by month, VAT summary (0% / 7% / 19%), DATEV export coverage.
+- Overdue receivables aging buckets and top customers (revenue + overdue).
+- Expense summary by category.
+- `/reporting` UI page with KPIs, charts, tables.
+- UTC-safe date handling on backend and frontend.
+- No new DB migration. Reads from existing tables.
+
+### Customer Portal
+
+- Per-customer portal access tokens (`customer_portal_access` table), issue/revoke from admin Customer edit screen.
+- Public portal endpoints under `/api/v1/portal/*` authenticated via `X-Portal-Token` header (or `?token=` query for magic-link entry).
+- Portal pages (separate `PortalLayout`, no staff sidebar): overview KPIs, invoices list/detail, quotes list/detail, ZUGFeRD PDF + XRechnung XML download, accept/decline quote.
+- Tokens are stored as SHA-256 hashes; plaintext is shown once at issue.
+- TR/EN/DE i18n on every portal surface.
+
 ## Local Services
 
 Default ports:
@@ -232,22 +317,20 @@ Demo users:
 
 ## Suggested Next Work
 
-Email Delivery is now complete. The next recommended large module is `Reporting Dashboard`, because:
+Customer Portal is now complete. The next recommended large module is `Advanced AI Accounting`, because:
 
-- Revenue, overdue receivables, VAT summary, and DATEV export coverage are not yet visualized.
-- The data already exists in InvoiceDrafts, PaymentAllocations, Expenses, and DatevExportLogs.
-- No new migrations needed — reads existing tables.
+- Receipt classification, DATEV account suggestions, and bank-tx matching confidence are user-visible AI wins that fit the existing scan-service infrastructure.
+- The underlying data (Expenses, BankTransactions, DATEV settings) and the Ollama-backed scan service are already wired up — no new external dependencies needed.
 
-Recommended scope for Reporting Dashboard:
+Recommended scope for Advanced AI Accounting:
 
-- Revenue by period (monthly/quarterly chart).
-- Overdue receivables summary with aging buckets.
-- VAT summary (19%, 7%, 0% breakdown).
-- DATEV export coverage (invoices exported vs. total).
-- Customer performance: top revenue customers, top overdue customers.
-- Expense summary by category.
+- Receipt → category suggestion: extend `scan-service` to return a suggested category and confidence per receipt; surface in `ExpenseForm.js` as auto-fill + "accept" UI.
+- DATEV account suggestion: based on customer/category/VAT rate, propose a DATEV revenue/expense account when the user is about to save; backend service in Domain or Application.
+- Bank transaction matching confidence: re-use existing `PaymentRepository.SuggestInvoicesAsync` but return a 0–1 confidence; UI shows a confidence bar and auto-selects high-confidence matches.
+- Missing e-invoice field suggestions: extend Compliance Center to recommend fixes (e.g. "Buyer VAT looks like a Leitweg-ID — move it to BT-10?").
+- All suggestions logged for audit (which suggestion was accepted/rejected).
 
-Alternative next module: `Customer Portal` (customers can view invoices/quotes, download PDF, accept quote, see payment status).
+Alternative next module: `Production Hardening` (real secret management, S3 Object Lock immutable archive, Schematron validation pipeline, production Peppol AP, background jobs, observability).
 
 ## How To Continue In Another Agent
 

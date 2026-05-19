@@ -33,6 +33,8 @@ public sealed class EasyMittDbContext(DbContextOptions<EasyMittDbContext> option
 
     public DbSet<EmailDeliveryLogEntity> EmailDeliveryLogs => Set<EmailDeliveryLogEntity>();
 
+    public DbSet<CustomerPortalAccessEntity> CustomerPortalAccesses => Set<CustomerPortalAccessEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(EasyMittDbContext).Assembly);

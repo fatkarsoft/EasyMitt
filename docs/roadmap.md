@@ -1,6 +1,6 @@
 # EasyMitt Roadmap
 
-Last updated: 2026-05-16
+Last updated: 2026-05-19 (Customer Portal)
 
 ## Product North Star
 
@@ -89,42 +89,40 @@ EasyMitt is a Germany-focused SaaS platform for e-invoicing and accounting opera
 - i18n keys for TR/EN/DE.
 - Admin/Accountant write, Auditor read-only.
 
-## Next Major Module
-
 ### Reporting Dashboard
 
-Goal: Visualize revenue, overdue receivables, VAT summary, and DATEV export coverage.
-
-- Revenue by period.
-- Overdue receivables with aging buckets.
-- VAT summary by rate.
-- DATEV export coverage.
-- Top customers by revenue and overdue amount.
+- `/api/v1/reporting/overview` endpoint with date range filters.
+- Revenue by month, VAT summary (0% / 7% / 19%), DATEV export coverage.
+- Overdue receivables with aging buckets (0-30 / 31-60 / 61-90 / 90+).
+- Top customers by revenue and by overdue amount.
 - Expense summary by category.
-
-## Upcoming Modules
+- `/reporting` page with charts and KPI cards.
+- UTC-safe date handling (backend `DateTime.SpecifyKind(..., Utc)`, frontend `toLocalIso`).
+- No new DB migration. Reads from existing tables.
 
 ### Customer Portal
 
-- Customer can view invoices and quotes.
-- Download PDF/XML.
-- Accept quote.
-- See payment status.
+- Per-customer portal access tokens in `customer_portal_access` (SHA-256 hashed, status Active/Revoked, expiry, last-used).
+- Admin-side issue/revoke UI inside Customer edit (plaintext token shown once + sharable `/portal?token=` link).
+- Public portal endpoints under `/api/v1/portal/*` (no JWT — `X-Portal-Token` header or `?token=` query): `/me`, `/invoices`, `/invoices/{id}`, `/invoices/{id}/zugferd.pdf`, `/invoices/{id}/xrechnung.xml`, `/quotes`, `/quotes/{id}`, `/quotes/{id}/accept`, `/quotes/{id}/decline`.
+- Portal frontend with its own layout (no staff sidebar): overview KPIs, invoice list/detail (PDF + XML download), quote list/detail (accept/decline).
+- Tenant + customer scoping enforced server-side; Draft invoices and Draft quotes are hidden from the portal.
+- TR/EN/DE i18n.
+- Migration `20260516184328_CustomerPortalAccess` applied.
 
-### Reporting Dashboard
-
-- Revenue.
-- Overdue receivables.
-- VAT summary.
-- DATEV export coverage.
-- Customer/product performance.
+## Next Major Module
 
 ### Advanced AI Accounting
 
-- Receipt category suggestions.
-- DATEV account suggestions.
-- Bank transaction matching confidence.
-- Missing e-invoice field suggestions.
+Goal: Reduce manual data entry and classification effort using local AI plus the data already in the system.
+
+- Receipt category suggestion from scan-service vision output.
+- DATEV account suggestion based on customer + category + VAT rate.
+- Bank transaction → invoice match with confidence score.
+- Missing e-invoice field suggestions in Compliance Center.
+- Audit log of suggestion accepted vs. rejected.
+
+## Upcoming Modules
 
 ### Production Hardening
 

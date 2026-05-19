@@ -1,5 +1,7 @@
 using EasyMitt.Application.Abstractions.Email;
 using EasyMitt.Application.Abstractions.Identity;
+using EasyMitt.Application.Abstractions.Portal;
+using EasyMitt.Infrastructure.Portal;
 using EasyMitt.Application.Abstractions.Archiving;
 using EasyMitt.Application.Abstractions.Communication;
 using EasyMitt.Application.Abstractions.Persistence;
@@ -43,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<IDatevExportLogRepository, DatevExportLogRepository>();
         services.AddScoped<IComplianceRepository, ComplianceRepository>();
         services.AddScoped<IEmailDeliveryLogRepository, EmailDeliveryLogRepository>();
+        services.AddScoped<ICustomerPortalAccessRepository, CustomerPortalAccessRepository>();
+        services.AddSingleton<IPortalTokenGenerator, PortalTokenGenerator>();
 
         var emailOptions = ReadEmailOptions(configuration);
         services.AddSingleton(Options.Create(emailOptions));

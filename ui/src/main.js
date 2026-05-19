@@ -28,6 +28,7 @@ import DatevPreview from "./pages/DatevPreview.js";
 import Compliance from "./pages/Compliance.js";
 import Reporting from "./pages/Reporting.js";
 import Settings from "./pages/Settings.js";
+import PortalShell from "./pages/PortalShell.js";
 
 function ProtectedApp() {
   const { session } = useAuth();
@@ -74,6 +75,7 @@ function App() {
   const { session } = useAuth();
   return (
     <Routes>
+      <Route path="/portal/*" element={<PortalShell />} />
       <Route path="/login" element={session ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/*" element={<ProtectedApp />} />
     </Routes>
